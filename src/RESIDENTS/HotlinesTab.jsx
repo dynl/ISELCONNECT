@@ -17,8 +17,31 @@ function HotlinesTab({ onBack }) {
           .select("branch_id, branch_name, branch_hotline")
           .order("branch_name", { ascending: true });
 
-        if (dbError) throw dbError;
-        setBranches(data || []);
+        if (dbError) {
+          console.error("Supabase Error:", dbError);
+          throw dbError;
+        }
+
+        if (data) {
+          // 1. Find the Main Office record
+          const mainOffice = data.find(
+            (branch) => branch.branch_name === "ISELCO-1 Main Office",
+          );
+
+          // 2. Get all other branches EXCEPT the Main Office
+          const otherBranches = data.filter(
+            (branch) => branch.branch_name !== "ISELCO-1 Main Office",
+          );
+
+          // 3. Combine them, forcing the Main Office to index 0 (the top)
+          const sortedBranches = mainOffice
+            ? [mainOffice, ...otherBranches]
+            : otherBranches;
+
+          setBranches(sortedBranches);
+        } else {
+          setBranches([]);
+        }
       } catch (err) {
         console.error("Error fetching hotlines:", err.message);
         setError("Failed to load hotline numbers.");
@@ -44,15 +67,24 @@ function HotlinesTab({ onBack }) {
     <div
       className="bg-navy-tab"
       style={{
-        minHeight: "100vh",
+        height: "100vh",
         position: "absolute",
         top: 0,
         left: 0,
         width: "100%",
         zIndex: 50,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        paddingTop: 0 /* Forces the container to ignore any default CSS top padding */,
       }}
     >
-      <div className="report-form-container">
+      {/* =========================================
+          STICKY HEADER & SEARCH SECTION 
+      ========================================= */}
+      <div style={{ padding: "15px 20px 15px 20px", flexShrink: 0 }}>
+        {" "}
+        {/* Reduced top padding from 30px to 15px */}
         {/* Back Button & Title Header */}
         <div
           style={{
@@ -93,16 +125,20 @@ function HotlinesTab({ onBack }) {
             </h2>
           </div>
         </div>
-
-        {/* Search Bar Wrapper */}
-        <div style={{ position: "relative", marginBottom: "20px" }}>
+        {/* Search Bar */}
+        <div style={{ position: "relative" }}>
           <input
             type="text"
             className="rounded-input"
             placeholder="Search branch office..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ paddingLeft: "50px" }}
+            style={{
+              paddingLeft: "50px",
+              width: "100%",
+              boxSizing: "border-box",
+              margin: 0,
+            }}
           />
           <Search
             size={20}
@@ -115,7 +151,12 @@ function HotlinesTab({ onBack }) {
             }}
           />
         </div>
+      </div>
 
+      {/* =========================================
+          SCROLLABLE LIST SECTION 
+      ========================================= */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 100px 20px" }}>
         {error && (
           <div
             style={{
@@ -163,14 +204,7 @@ function HotlinesTab({ onBack }) {
           </p>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-            paddingBottom: "100px",
-          }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {loading ? (
             <p
               style={{

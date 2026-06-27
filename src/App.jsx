@@ -6,9 +6,12 @@ import Auth from "./RESIDENTS/Auth";
 import ResidentDashboard from "./RESIDENTS/ResidentDashboard";
 import LinemanAuth from "./LINEMAN/LinemanAuth";
 import LinemanDashboard from "./LINEMAN/LinemanDashboard";
-// 1. Import the new Dev component (Adjust the path if you saved it elsewhere!)
-import LinemanRegister from "./LINEMAN/LinemanRegister"; 
 
+
+
+
+
+// import LinemanRegister from "./TESTING/LinemanRegister"; 
 function App() {
   const [session, setSession] = useState(null);
   const [userRole, setUserRole] = useState(null);
@@ -17,7 +20,7 @@ function App() {
   const [roleFetching, setRoleFetching] = useState(false);
   const [authView, setAuthView] = useState("selection");
 
-  // 2. Add a simple check for the hidden development route
+
   const isDevRoute = window.location.pathname === "/dev-lineman-signup";
 
   useEffect(() => {
@@ -94,7 +97,7 @@ function App() {
     );
   }
 
-  // 3. Render the hidden dev route if the URL matches
+
   if (isDevRoute) {
     return <LinemanRegister onBack={() => window.location.href = "/"} />;
   }
@@ -136,3 +139,40 @@ function App() {
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// import React from 'react';
+// // Make sure this path is correct based on where you saved it!
+// import AdminScheduleAdvisory from './AdminScheduleAdvisory'; 
+
+// function App() {
+//   return (
+//     <div style={{ backgroundColor: "#e2e8f0", minHeight: "100vh", padding: "20px" }}>
+//       <AdminScheduleAdvisory />
+//     </div>
+//   );
+// }
+
+// // THIS IS THE CRITICAL LINE THAT WAS MISSING!
+// export default App;
