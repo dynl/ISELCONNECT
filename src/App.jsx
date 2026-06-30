@@ -164,7 +164,7 @@ export default App;
 
 // import React from 'react';
 // // Make sure this path is correct based on where you saved it!
-// import AdminScheduleAdvisory from './AdminScheduleAdvisory'; 
+// import AdminScheduleAdvisory from './TESTING/AdminScheduleAdvisory'; 
 
 // function App() {
 //   return (

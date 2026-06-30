@@ -17,12 +17,17 @@ function AdvisoryTab() {
   const fetchAdvisories = async () => {
     try {
       setLoading(true);
+
+      // Get the exact current date and time in a database-friendly format (ISO string)
+      const currentDateTime = new Date().toISOString();
+
       const { data: advisoryData, error: advisoryError } = await supabase
         .from("power_advisories")
-        // Added municipalities(name) to fetch the municipality for the header!
         .select(
           "id, affected_areas, schedule_start, schedule_end, municipalities(name)",
         )
+        // THIS IS THE MAGIC LINE: Only fetch where schedule_end is in the future!
+        .gte("schedule_end", currentDateTime)
         .order("schedule_start", { ascending: true });
 
       if (!advisoryError && advisoryData) setAdvisories(advisoryData);

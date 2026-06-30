@@ -66,6 +66,8 @@ function LinemanProfileTab({ onLogout }) {
 
         setUserProfile({
           id: user.id,
+          // Grabbing the email directly from the secure auth object
+          email: user.email || dbUser?.email || "N/A",
           firstName: dbUser?.first_name ?? "",
           lastName: dbUser?.last_name ?? "",
           middleName: dbUser?.middle_name ?? "",
@@ -367,6 +369,20 @@ function LinemanProfileTab({ onLogout }) {
                     {userProfile?.employeeId}
                   </span>
                 </div>
+
+                {/* NEW ROW FOR EMAIL */}
+                <div className="l-pt-data-row pt-data-row">
+                  <span className="l-pt-data-label pt-data-label">
+                    Email Address:
+                  </span>
+                  <span
+                    className="l-pt-data-value pt-data-value"
+                    style={{ fontWeight: "700", wordBreak: "break-all" }}
+                  >
+                    {userProfile?.email}
+                  </span>
+                </div>
+
                 <div className="l-pt-data-row pt-data-row">
                   <span className="l-pt-data-label pt-data-label">
                     Address:

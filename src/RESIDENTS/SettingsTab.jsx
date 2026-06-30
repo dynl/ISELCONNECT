@@ -3,12 +3,17 @@ import { ChevronLeft, Info, LogOut } from "lucide-react";
 import { translations } from "./translations";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
+import AboutUs from "./AboutUs"; // Ensure this import matches exactly where you saved the file!
 
 function SettingsTab({ onBack, onLogout }) {
   const savedLanguage = localStorage.getItem("appLanguage") || "English";
   const [fontSize, setFontSize] = useState("2");
   const [language, setLanguage] = useState(savedLanguage);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  
+  // New state to control the About Us overlay
+  const [showAboutUs, setShowAboutUs] = useState(false); 
+  
   const t = translations[savedLanguage];
 
   const handleSave = async () => {
@@ -29,6 +34,11 @@ function SettingsTab({ onBack, onLogout }) {
     await supabase.auth.signOut();
     if (onLogout) onLogout();
   };
+
+  // If the state is true, render the About Us component and pass it the function to close itself
+  if (showAboutUs) {
+    return <AboutUs onBack={() => setShowAboutUs(false)} />;
+  }
 
   return (
     <div className="settings-page">
@@ -130,22 +140,32 @@ function SettingsTab({ onBack, onLogout }) {
             <LogOut size={20} /> Log Out Account
           </button>
 
-          <div
+          {/* Upgraded from a static div to a clickable button element */}
+          <button
+            onClick={() => setShowAboutUs(true)}
             style={{
               display: "flex",
               alignItems: "center",
+              justifyContent: "flex-start",
               gap: "10px",
               marginTop: "20px",
               color: "#64748b",
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              width: "100%",
+              fontFamily: "inherit",
+              fontSize: "1rem"
             }}
           >
             <Info size={20} />
             <span style={{ fontWeight: "bold" }}>{t.aboutUs}</span>
-          </div>
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-export default SettingsTab;
+export default SettingsTab; 

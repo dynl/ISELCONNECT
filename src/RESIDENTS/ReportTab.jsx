@@ -2,11 +2,154 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Webcam from "react-webcam";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
-import { Camera as CameraIcon, ChevronLeft } from "lucide-react";
+import { Camera as CameraIcon, ChevronLeft, ChevronDown } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+
+// =====================================================================
+// CUSTOM SEARCHABLE DROPDOWN COMPONENT (Replaces standard <select>)
+// =====================================================================
+const SearchableDropdown = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  name,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef(null);
+
+  // Find the selected option to display its name
+  const selectedOption = options.find(
+    (opt) => opt.id.toString() === value?.toString(),
+  );
+
+  // Close dropdown if user clicks outside of it
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setSearchTerm(""); // Reset search when closed
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Filter options based on what the user types
+  const filteredOptions = options.filter((opt) =>
+    opt.name.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  // Determine what text to show inside the input field
+  const displayValue = isOpen
+    ? searchTerm
+    : selectedOption
+      ? selectedOption.name
+      : "";
+
+  return (
+    <div
+      ref={dropdownRef}
+      style={{ position: "relative", width: "100%", marginBottom: "0px" }}
+    >
+      <input
+        type="text"
+        name={name}
+        className="rounded-input"
+        style={{
+          opacity: disabled ? 0.6 : 1,
+          cursor: disabled ? "not-allowed" : "text",
+          width: "100%",
+          boxSizing: "border-box",
+        }}
+        placeholder={placeholder}
+        value={displayValue}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          if (!isOpen) setIsOpen(true);
+        }}
+        onClick={() => !disabled && setIsOpen(true)}
+        disabled={disabled}
+        autoComplete="off"
+      />
+
+      {/* Down arrow to make it look like a standard dropdown */}
+      <div
+        style={{
+          position: "absolute",
+          right: "15px",
+          top: "25px",
+          transform: "translateY(-50%)",
+          pointerEvents: "none",
+        }}
+      >
+        <ChevronDown size={20} color="#64748b" />
+      </div>
+
+      {/* The Popup List */}
+      {isOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            backgroundColor: "#ffffff",
+            border: "1px solid #e2e8f0",
+            borderRadius: "15px",
+            maxHeight: "220px",
+            overflowY: "auto",
+            zIndex: 9999,
+            boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+            marginTop: "5px",
+            padding: "5px",
+          }}
+        >
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map((opt) => (
+              <div
+                key={opt.id}
+                onClick={() => {
+                  // Simulate a standard event target so the existing handleInputChange works
+                  onChange({ target: { name, value: opt.id } });
+                  setIsOpen(false);
+                  setSearchTerm("");
+                }}
+                style={{
+                  padding: "12px 15px",
+                  cursor: "pointer",
+                  borderRadius: "10px",
+                  color: "#1e293b",
+                  fontWeight: selectedOption?.id === opt.id ? "bold" : "normal",
+                  backgroundColor:
+                    selectedOption?.id === opt.id ? "#f1f5f9" : "transparent",
+                }}
+              >
+                {opt.name}
+              </div>
+            ))
+          ) : (
+            <div
+              style={{
+                padding: "12px 15px",
+                color: "#94a3b8",
+                textAlign: "center",
+              }}
+            >
+              No results found
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+// =====================================================================
 
 function ReportTab({ isActive }) {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -37,14 +180,12 @@ function ReportTab({ isActive }) {
   // 1. Fetch Report Types & Municipalities (with their branch_id)
   useEffect(() => {
     const fetchInitialData = async () => {
-      // Fetch Types
       const { data: typesData, error: typesError } = await supabase
         .from("report_types")
         .select("id, name")
         .order("id", { ascending: true });
       if (typesData && !typesError) setReportTypes(typesData);
 
-      // Fetch Municipalities (Include branch_id for routing!)
       const { data: munData, error: munError } = await supabase
         .from("municipalities")
         .select("id, name, branch_id")
@@ -131,7 +272,6 @@ function ReportTab({ isActive }) {
   };
 
   const handleSubmitReport = async () => {
-    // Validations
     if (!imagePreview) return setError("Please capture a photo of the issue.");
     if (!coordinates.lat || !coordinates.lon)
       return setError("Location coordinates are required.");
@@ -152,13 +292,11 @@ function ReportTab({ isActive }) {
       } = await supabase.auth.getUser();
       if (userError) throw userError;
 
-      // Automatically determine the branch_id based on selected municipality
       const selectedMunicipality = municipalities.find(
         (m) => m.id.toString() === formData.municipality_id.toString(),
       );
       const automaticBranchId = selectedMunicipality?.branch_id || null;
 
-      // Upload Photo
       const fileName = `${user.id}-${Date.now()}.jpg`;
       const imageBlob = base64ToBlob(imagePreview);
       const { error: uploadError } = await supabase.storage
@@ -170,7 +308,6 @@ function ReportTab({ isActive }) {
         .from("report_photos")
         .getPublicUrl(fileName);
 
-      // Insert Report with automatic branch routing
       const { error: dbError } = await supabase.from("reports").insert([
         {
           residents_id: user.id,
@@ -182,7 +319,7 @@ function ReportTab({ isActive }) {
           municipality_id: parseInt(formData.municipality_id),
           barangay_id: parseInt(formData.barangay_id),
           purok_sitio: formData.purok_sitio.trim() || null,
-          branch_id: automaticBranchId, // <--- AUTOMATIC ROUTING APPLIED HERE
+          branch_id: automaticBranchId,
           status_id: 1,
           photo_url: publicUrlData.publicUrl,
         },
@@ -347,57 +484,38 @@ function ReportTab({ isActive }) {
               readOnly
             />
 
-            <select
+            {/* --- NEW SEARCHABLE DROPDOWNS --- */}
+
+            <SearchableDropdown
               name="report_type_id"
-              className="rounded-input custom-select"
+              options={reportTypes}
               value={formData.report_type_id}
               onChange={handleInputChange}
-            >
-              <option value="" disabled>
-                Report Type
-              </option>
-              {reportTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+              placeholder="Report Type"
+            />
 
-            {/* NEW LOCATION FIELDS FOR INCIDENT REPORTING */}
-            <select
+            <SearchableDropdown
               name="municipality_id"
-              className="rounded-input custom-select"
+              options={municipalities}
               value={formData.municipality_id}
               onChange={handleInputChange}
-            >
-              <option value="" disabled>
-                Incident Municipality
-              </option>
-              {municipalities.map((mun) => (
-                <option key={mun.id} value={mun.id}>
-                  {mun.name}
-                </option>
-              ))}
-            </select>
+              placeholder="Incident Municipality"
+            />
 
-            <select
+            <SearchableDropdown
               name="barangay_id"
-              className="rounded-input custom-select"
+              options={barangays}
               value={formData.barangay_id}
               onChange={handleInputChange}
-              disabled={!formData.municipality_id}
-            >
-              <option value="" disabled>
-                {!formData.municipality_id
+              placeholder={
+                !formData.municipality_id
                   ? "Select Municipality first"
-                  : "Incident Barangay"}
-              </option>
-              {barangays.map((bar) => (
-                <option key={bar.id} value={bar.id}>
-                  {bar.name}
-                </option>
-              ))}
-            </select>
+                  : "Incident Barangay"
+              }
+              disabled={!formData.municipality_id}
+            />
+
+            {/* -------------------------------- */}
 
             <input
               type="text"
