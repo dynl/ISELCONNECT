@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Webcam from "react-webcam";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css"; // Leaflet CSS import
 import { Camera as CameraIcon, ChevronLeft, ChevronDown } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
-
 // =====================================================================
-// CUSTOM SEARCHABLE DROPDOWN COMPONENT (Replaces standard <select>)
+// CUSTOM SEARCHABLE DROPDOWN COMPONENT
 // =====================================================================
 const SearchableDropdown = ({
   options,
@@ -23,29 +21,25 @@ const SearchableDropdown = ({
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef(null);
 
-  // Find the selected option to display its name
   const selectedOption = options.find(
     (opt) => opt.id.toString() === value?.toString(),
   );
 
-  // Close dropdown if user clicks outside of it
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
-        setSearchTerm(""); // Reset search when closed
+        setSearchTerm("");
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filter options based on what the user types
   const filteredOptions = options.filter((opt) =>
     opt.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
-  // Determine what text to show inside the input field
   const displayValue = isOpen
     ? searchTerm
     : selectedOption
@@ -78,7 +72,6 @@ const SearchableDropdown = ({
         autoComplete="off"
       />
 
-      {/* Down arrow to make it look like a standard dropdown */}
       <div
         style={{
           position: "absolute",
@@ -91,7 +84,6 @@ const SearchableDropdown = ({
         <ChevronDown size={20} color="#64748b" />
       </div>
 
-      {/* The Popup List */}
       {isOpen && (
         <div
           style={{
@@ -115,7 +107,6 @@ const SearchableDropdown = ({
               <div
                 key={opt.id}
                 onClick={() => {
-                  // Simulate a standard event target so the existing handleInputChange works
                   onChange({ target: { name, value: opt.id } });
                   setIsOpen(false);
                   setSearchTerm("");
@@ -177,7 +168,6 @@ function ReportTab({ isActive }) {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
 
-  // 1. Fetch Report Types & Municipalities (with their branch_id)
   useEffect(() => {
     const fetchInitialData = async () => {
       const { data: typesData, error: typesError } = await supabase
@@ -196,7 +186,6 @@ function ReportTab({ isActive }) {
     fetchInitialData();
   }, []);
 
-  // 2. Fetch Barangays dynamically when a Municipality is selected
   useEffect(() => {
     const fetchBarangays = async () => {
       if (!formData.municipality_id) {
@@ -231,7 +220,6 @@ function ReportTab({ isActive }) {
     const { name, value } = e.target;
     setFormData((prev) => {
       const newData = { ...prev, [name]: value };
-      // Reset barangay if municipality changes
       if (name === "municipality_id") newData.barangay_id = "";
       return newData;
     });
@@ -346,30 +334,55 @@ function ReportTab({ isActive }) {
     }
   };
 
+  // =====================================================================
+  // LEAFLET MAP IMPLEMENTATION
+  // =====================================================================
   useEffect(() => {
-    if (!isActive || !coordinates.lat || !coordinates.lon) return;
+    // If we lose coordinates (e.g., successful submission clears them),
+    // cleanly destroy the map instance to prevent Leaflet initialization errors.
+    if (!isActive || !coordinates.lat || !coordinates.lon) {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+      return;
+    }
+
     const lat = parseFloat(coordinates.lat);
     const lon = parseFloat(coordinates.lon);
+
     setTimeout(() => {
       if (!mapContainerRef.current) return;
+
+      // 1. Create a custom HTML marker that matches your Yellow/Navy theme
+      const customIcon = L.divIcon({
+        className: "custom-leaflet-marker",
+        html: `<div style="background-color: #facc15; width: 22px; height: 22px; border-radius: 50%; border: 4px solid #1b0b8c; box-shadow: 0 4px 8px rgba(0,0,0,0.4);"></div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11], // Centers the dot perfectly on the coordinates
+      });
+
+      // 2. Initialize the map if it doesn't exist yet
       if (!mapRef.current) {
-        mapRef.current = new mapboxgl.Map({
-          container: mapContainerRef.current,
-          style: "mapbox://styles/mapbox/streets-v12",
-          center: [lon, lat],
-          zoom: 15,
-        });
-        mapRef.current.addControl(
-          new mapboxgl.NavigationControl(),
-          "top-right",
-        );
+        mapRef.current = L.map(mapContainerRef.current, {
+          zoomControl: false, // Optional: Hides the default + - buttons for a cleaner UI
+        }).setView([lat, lon], 16);
+
+        // Standard OpenStreetMap free tiles!
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors",
+          maxZoom: 19,
+        }).addTo(mapRef.current);
       } else {
-        mapRef.current.flyTo({ center: [lon, lat], zoom: 16, essential: true });
+        // If map exists, just update the camera view
+        mapRef.current.setView([lat, lon], 16);
       }
+
+      // 3. Update or replace the marker
       if (markerRef.current) markerRef.current.remove();
-      markerRef.current = new mapboxgl.Marker({ color: "#facc15" })
-        .setLngLat([lon, lat])
-        .addTo(mapRef.current);
+      markerRef.current = L.marker([lat, lon], { icon: customIcon }).addTo(
+        mapRef.current,
+      );
     }, 100);
   }, [coordinates, isActive]);
 
@@ -435,10 +448,12 @@ function ReportTab({ isActive }) {
             )}
           </div>
 
+          {/* Map Container uses z-index inline to ensure it doesn't overlap dropdowns */}
           {coordinates.lat && (
             <div
               ref={mapContainerRef}
               className="map-preview-box report-map-mb"
+              style={{ zIndex: 1 }}
             />
           )}
 
@@ -484,8 +499,6 @@ function ReportTab({ isActive }) {
               readOnly
             />
 
-            {/* --- NEW SEARCHABLE DROPDOWNS --- */}
-
             <SearchableDropdown
               name="report_type_id"
               options={reportTypes}
@@ -514,8 +527,6 @@ function ReportTab({ isActive }) {
               }
               disabled={!formData.municipality_id}
             />
-
-            {/* -------------------------------- */}
 
             <input
               type="text"

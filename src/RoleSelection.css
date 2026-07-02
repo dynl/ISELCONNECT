@@ -51,18 +51,6 @@ button {
   overflow: hidden;
 }
 
-.role-top-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.06) 0%,
-    rgba(255, 255, 255, 0.36) 100%
-  );
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-}
-
 .role-logo {
   position: relative;
   z-index: 1;

@@ -37,10 +37,9 @@ function LinemanReportTab() {
 
       if (userData) setLinemanName(userData.first_name);
 
-      // Store the lineman's branch ID to use in our queries below
       const linemanBranchId = userData?.branch_id;
 
-      // 2. Fetch Assignments (These are explicitly assigned to this lineman)
+      // 2. Fetch Assignments
       const { data: assignmentsData, error: assignError } = await supabase
         .from("assignments")
         .select(
@@ -62,7 +61,6 @@ function LinemanReportTab() {
         .order("created_at", { ascending: false })
         .limit(5);
 
-      // Apply the branch filter if the lineman has a branch assigned
       if (linemanBranchId) {
         generalReportsQuery = generalReportsQuery.eq(
           "branch_id",
@@ -78,7 +76,6 @@ function LinemanReportTab() {
         .from("reports")
         .select("*", { count: "exact", head: true });
 
-      // Apply the branch filter to the count
       if (linemanBranchId) {
         countQuery = countQuery.eq("branch_id", linemanBranchId);
       }
@@ -267,7 +264,6 @@ function LinemanReportTab() {
         paddingBottom: "100px",
       }}
     >
-      {/* HEADER */}
       <div className="l-rt-sticky-header" style={{ marginBottom: "20px" }}>
         <p className="l-rt-greeting" style={{ margin: 0 }}>
           Hello
@@ -277,7 +273,6 @@ function LinemanReportTab() {
         </h2>
       </div>
 
-      {/* RESTORED STAT BOXES */}
       <div
         style={{
           display: "flex",
@@ -321,7 +316,6 @@ function LinemanReportTab() {
         </div>
       </div>
 
-      {/* VIEW RESOLVED BUTTON */}
       <button
         onClick={() => setShowResolvedScreen(true)}
         style={{
@@ -347,22 +341,22 @@ function LinemanReportTab() {
         VIEW RESOLVED REPORTS ({resolvedReports.length})
       </button>
 
-      {/* SECTION TITLE */}
-      <h2 className="l-rt-section-title">
+      <h2 className="l-rt-section-title" style={{ marginBottom: 0 }}>
         <span className="text-yellow">ASSIGNED</span>{" "}
         <span className="text-navy">REPORTS</span>
       </h2>
 
-      {/* FILTER PILLS (Z-Index increased to prevent overlapping) */}
+      {/* =====================================================================
+          THE FIX: REMOVED OVERFLOW, ENABLED WRAPPING
+          ===================================================================== */}
       <div
         style={{
           display: "flex",
-          flexWrap: "nowrap",
-          overflowX: "auto",
+          flexWrap: "wrap", // <--- This allows them to flow naturally
           gap: "10px",
-          marginTop: "15px",
+          padding: "5px 0", // <--- Removed heavy padding
+          marginTop: "10px",
           marginBottom: "15px",
-          paddingBottom: "5px",
           position: "relative",
           zIndex: 20,
         }}
@@ -394,7 +388,6 @@ function LinemanReportTab() {
         ))}
       </div>
 
-      {/* ASSIGNED REPORTS LIST (Margin top explicitly set to 0 to stop it from sliding up) */}
       <div
         className="l-rt-list-wrapper"
         style={{
@@ -406,12 +399,16 @@ function LinemanReportTab() {
           marginTop: "0px",
           position: "relative",
           zIndex: 10,
+          background: "transparent",
         }}
       >
         {loading ? (
           <p className="l-rt-loading">Loading assignments...</p>
         ) : filteredActiveReports.length === 0 ? (
-          <p className="l-rt-loading" style={{ color: "#64748b" }}>
+          <p
+            className="l-rt-loading"
+            style={{ color: "#64748b", background: "transparent" }}
+          >
             No active reports match this filter.
           </p>
         ) : (
@@ -485,7 +482,6 @@ function LinemanReportTab() {
         GENERAL REPORTS
       </h2>
 
-      {/* GENERAL REPORTS LIST */}
       <div
         style={{
           display: "flex",

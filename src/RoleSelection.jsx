@@ -7,7 +7,7 @@ function RoleSelection({ onSelectResident, onSelectLineman }) {
   return (
     <div className="role-selection-layout">
       <div className="role-top-section">
-        <div className="role-top-overlay"></div>
+        {/* The overlay div has been removed from here so the background is crisp! */}
         <img src={logo} alt="ISELCONNECT" className="role-logo" />
       </div>
 

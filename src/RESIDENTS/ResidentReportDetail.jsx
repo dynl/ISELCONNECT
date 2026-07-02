@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { ChevronLeft, Save, Edit2, X, CheckCircle, MapPin } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
@@ -8,7 +10,11 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
   const [reportTypes, setReportTypes] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showMap, setShowMap] = useState(false); // NEW STATE FOR MAP
+  const [showMap, setShowMap] = useState(false);
+
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
 
   const isPending = report.report_statuses?.name?.toUpperCase() === "PENDING";
 
@@ -26,14 +32,59 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
       };
       fetchTypes();
     }
-    
-    // Hide navbar universally on this screen
+
     const navBar = document.querySelector(".bottom-nav-wrapper");
     if (navBar) navBar.style.display = "none";
     return () => {
       if (navBar) navBar.style.display = "";
     };
   }, [isPending]);
+
+  // ==========================================
+  // LEAFLET MAP INITIALIZATION
+  // ==========================================
+  useEffect(() => {
+    if (!showMap) {
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+      return;
+    }
+
+    // Default to a central Isabela location if coordinates are somehow missing
+    const lat = report.latitude ? parseFloat(report.latitude) : 16.7805;
+    const lon = report.longitude ? parseFloat(report.longitude) : 121.6508;
+
+    setTimeout(() => {
+      if (!mapContainerRef.current) return;
+
+      const customIcon = L.divIcon({
+        className: "custom-leaflet-marker",
+        html: `<div style="background-color: #facc15; width: 22px; height: 22px; border-radius: 50%; border: 4px solid #1b0b8c; box-shadow: 0 4px 8px rgba(0,0,0,0.4);"></div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      });
+
+      if (!mapRef.current) {
+        mapRef.current = L.map(mapContainerRef.current, {
+          zoomControl: false,
+        }).setView([lat, lon], 16);
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors",
+          maxZoom: 19,
+        }).addTo(mapRef.current);
+      } else {
+        mapRef.current.setView([lat, lon], 16);
+      }
+
+      if (markerRef.current) markerRef.current.remove();
+      markerRef.current = L.marker([lat, lon], { icon: customIcon }).addTo(
+        mapRef.current,
+      );
+    }, 100);
+  }, [showMap, report.latitude, report.longitude]);
 
   const handleEditClick = () => {
     setFormData({
@@ -94,54 +145,62 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
     reportTypes.find((t) => t.id === parseInt(formData.report_type_id))?.name ||
     report.report_types?.name;
 
-  // FIXED GOOGLE MAPS URL FORMAT
-  let mapSourceUrl = "";
-  if (report.latitude && report.longitude) {
-    mapSourceUrl = `https://maps.google.com/maps?q=${report.latitude},${report.longitude}&t=&z=17&ie=UTF8&iwloc=&output=embed`;
-  } else {
-    const fallbackQuery = encodeURIComponent(`${formData.landmark || "Isabela"}, Isabela, Philippines`);
-    mapSourceUrl = `https://maps.google.com/maps?q=${fallbackQuery}&t=&z=15&ie=UTF8&iwloc=&output=embed`;
-  }
-
-  // ==========================================
-  // FULL SCREEN LOCATION MAP OVERLAY
-  // ==========================================
   if (showMap) {
     return (
-      <div style={{
-        position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh",
-        background: "#f8fafc", zIndex: 99999, display: "flex", flexDirection: "column"
-      }}>
-        {/* MAP HEADER */}
-        <div style={{
-          display: "flex", alignItems: "center", padding: "20px 15px",
-          background: "#1b0b8c", flexShrink: 0
-        }}>
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "#f8fafc",
+          zIndex: 99999,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "20px 15px",
+            background: "#1b0b8c",
+            flexShrink: 0,
+          }}
+        >
           <button
             onClick={() => setShowMap(false)}
             style={{
-              background: "transparent", border: "none", padding: 0,
-              display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer"
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
             }}
           >
             <ChevronLeft size={32} color="#fff" />
           </button>
-          <span style={{ color: "#fff", fontWeight: "900", marginLeft: "10px", letterSpacing: "1px", fontSize: "1rem" }}>
+          <span
+            style={{
+              color: "#fff",
+              fontWeight: "900",
+              marginLeft: "10px",
+              letterSpacing: "1px",
+              fontSize: "1rem",
+            }}
+          >
             LOCATION MAP
           </span>
         </div>
-
-        {/* MAP IFRAME CONTAINER */}
         <div style={{ flex: 1, width: "100%", position: "relative" }}>
-          <iframe
-            title="Report Location Map"
-            width="100%"
-            height="100%"
-            style={{ border: 0, position: "absolute", top: 0, left: 0 }}
-            loading="lazy"
-            allowFullScreen
-            src={mapSourceUrl}
-          ></iframe>
+          {/* LEAFLET MAP CONTAINER */}
+          <div
+            ref={mapContainerRef}
+            style={{ position: "absolute", top: 0, bottom: 0, width: "100%" }}
+          />
         </div>
       </div>
     );
@@ -201,9 +260,6 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
           )}
         </div>
 
-        {/* ==========================================
-            NEW "VIEW MAP" BUTTON
-            ========================================== */}
         <button
           onClick={() => setShowMap(true)}
           style={{
@@ -222,10 +278,10 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
             cursor: "pointer",
             boxShadow: "0 6px 15px rgba(27, 11, 140, 0.2)",
             transition: "transform 0.1s",
-            marginBottom: "20px"
+            marginBottom: "20px",
           }}
-          onMouseDown={(e) => e.currentTarget.style.transform = "scale(0.98)"}
-          onMouseUp={(e) => e.currentTarget.style.transform = "scale(1)"}
+          onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.98)")}
+          onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >
           <MapPin size={22} />
           VIEW LOCATION MAP
@@ -303,7 +359,18 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
           ) : (
             <div className="rrd-view-wrapper">
               {!isPending && (
-                <p className="rrd-processing-msg" style={{ fontSize: "0.85rem", color: "#b45309", background: "#fffbeb", padding: "10px", borderRadius: "8px", marginBottom: "15px", fontWeight: "bold" }}>
+                <p
+                  className="rrd-processing-msg"
+                  style={{
+                    fontSize: "0.85rem",
+                    color: "#b45309",
+                    background: "#fffbeb",
+                    padding: "10px",
+                    borderRadius: "8px",
+                    marginBottom: "15px",
+                    fontWeight: "bold",
+                  }}
+                >
                   This report is currently being processed and can no longer be
                   edited.
                 </p>

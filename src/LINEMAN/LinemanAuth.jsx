@@ -58,12 +58,39 @@ function LinemanAuth({ onLoginSuccess, onBack }) {
 
   return (
     <div className="auth-layout">
-      {/* LINEMAN LOGIN - FORCED PHOTO BACKGROUND MOCKUP */}
-      <div className="auth-top-section auth-bg-photo">
-        <button className="auth-back-btn" onClick={onBack} title="Go Back">
+      {/* 
+        =====================================================================
+        THE FIX: Added absolute positioning to the back button and forced 
+        the logo container to center at 100% width.
+        ===================================================================== 
+      */}
+      <div
+        className="auth-top-section auth-bg-photo"
+        style={{
+          position: "relative",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <button
+          className="auth-back-btn"
+          onClick={onBack}
+          title="Go Back"
+          style={{
+            position: "absolute",
+            top: "20px",
+            left: "20px",
+            zIndex: 10,
+          }}
+        >
           <ChevronLeft size={24} color="#1e1b4b" strokeWidth={2.5} />
         </button>
-        <div className="auth-logo-container">
+
+        <div
+          className="auth-logo-container"
+          style={{ display: "flex", justifyContent: "center", width: "100%" }}
+        >
           <img src={logo} alt="ISELCONNECT Logo" className="auth-logo-img" />
         </div>
       </div>

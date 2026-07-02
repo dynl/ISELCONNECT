@@ -33,7 +33,7 @@ function Auth({ onBack }) {
     middleName: "",
     lastName: "",
     purokSitio: "",
-    otherLocation: "", // NEW STATE FOR CITY/PROVINCE
+    otherLocation: "",
     municipality_id: "",
     barangay_id: "",
   });
@@ -89,7 +89,6 @@ function Auth({ onBack }) {
     });
   };
 
-  // Check if "Other / Outside Coverage Area" is currently selected
   const isOtherMunicipality =
     municipalities.find(
       (m) => m.id.toString() === formData.municipality_id.toString(),
@@ -131,7 +130,6 @@ function Auth({ onBack }) {
           "Resident logged into the application successfully.",
         );
       } else {
-        // --- PASSWORD VALIDATION CHECK ---
         const passwordError = validatePassword(formData.password);
         if (passwordError) {
           throw new Error(passwordError);
@@ -154,7 +152,6 @@ function Auth({ onBack }) {
 
         const newUserId = authData.user.id;
 
-        // Combine Purok and Other Location if applicable
         let finalPurokSitio = formData.purokSitio.trim();
         if (isOtherMunicipality && formData.otherLocation.trim()) {
           finalPurokSitio = finalPurokSitio
@@ -198,14 +195,38 @@ function Auth({ onBack }) {
 
   return (
     <div className="auth-layout">
+      {/* 
+        =====================================================================
+        THE FIX: Removed the dynamic class so it always uses 'auth-bg-photo'
+        ===================================================================== 
+      */}
       <div
-        className={`auth-top-section ${isLogin ? "auth-bg-photo" : "auth-bg-white"}`}
+        className="auth-top-section auth-bg-photo"
+        style={{
+          position: "relative",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
       >
-        <button className="auth-back-btn" onClick={onBack} type="button">
+        <button
+          className="auth-back-btn"
+          onClick={onBack}
+          type="button"
+          style={{
+            position: "absolute",
+            top: "20px",
+            left: "20px",
+            zIndex: 10,
+          }}
+        >
           <ChevronLeft size={24} strokeWidth={2.5} color="#1e1b4b" />
         </button>
 
-        <div className="auth-logo-container">
+        <div
+          className="auth-logo-container"
+          style={{ display: "flex", justifyContent: "center", width: "100%" }}
+        >
           <img src={logo} alt="ISELCONNECT Logo" className="auth-logo-img" />
         </div>
       </div>
@@ -313,7 +334,6 @@ function Auth({ onBack }) {
                 </select>
               </div>
 
-              {/* NEW CITY / PROVINCE INPUT FOR OUTSIDE COVERAGE */}
               {isOtherMunicipality && (
                 <div className="auth-input-group">
                   <input
