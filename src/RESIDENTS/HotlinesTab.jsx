@@ -65,7 +65,7 @@ function HotlinesTab({ onBack }) {
 
   return (
     <div
-      className="bg-navy-tab"
+      className="bg-navy-tab page-transition" /* PAGE TRANSITION ADDED HERE */
       style={{
         height: "100vh",
         position: "absolute",
@@ -76,15 +76,13 @@ function HotlinesTab({ onBack }) {
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        paddingTop: 0 /* Forces the container to ignore any default CSS top padding */,
+        paddingTop: 0,
       }}
     >
       {/* =========================================
           STICKY HEADER & SEARCH SECTION 
       ========================================= */}
       <div style={{ padding: "15px 20px 15px 20px", flexShrink: 0 }}>
-        {" "}
-        {/* Reduced top padding from 30px to 15px */}
         {/* Back Button & Title Header */}
         <div
           style={{

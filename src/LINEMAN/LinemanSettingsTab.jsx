@@ -6,7 +6,6 @@ import "../Lineman.css";
 
 function LinemanSettingsTab({ onBack, onLogout }) {
   const savedLanguage = localStorage.getItem("appLanguage") || "English";
-  const [fontSize, setFontSize] = useState("2");
   const [language, setLanguage] = useState(savedLanguage);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -35,7 +34,10 @@ function LinemanSettingsTab({ onBack, onLogout }) {
   };
 
   return (
-    <div className="settings-page">
+    <div 
+      className="settings-page page-transition"
+      style={{ height: "100%", overflowY: "auto", paddingBottom: "120px", boxSizing: "border-box" }}
+    >
       {/* LOGOUT CONFIRMATION MODAL */}
       {showLogoutModal && (
         <div className="custom-alert-overlay">
@@ -74,37 +76,6 @@ function LinemanSettingsTab({ onBack, onLogout }) {
       </div>
 
       <div className="settings-content-wrapper">
-        {/* APPEARANCE CARD */}
-        <div className="settings-card">
-          <h2 className="settings-card-title">Appearance</h2>
-          <h3
-            className="section-label"
-            style={{
-              marginBottom: "10px",
-              color: "#64748b",
-              fontSize: "0.9rem",
-            }}
-          >
-            Font Size
-          </h3>
-          <div className="font-slider-container">
-            <div className="font-labels">
-              <span className="st-font-label-sm">Aa</span>
-              <span className="st-font-label-md">Aa</span>
-              <span className="st-font-label-lg">Aa</span>
-            </div>
-            <input
-              type="range"
-              min="1"
-              max="3"
-              step="1"
-              value={fontSize}
-              onChange={(e) => setFontSize(e.target.value)}
-              className="font-slider"
-            />
-          </div>
-        </div>
-
         {/* LANGUAGES CARD */}
         <div className="settings-card">
           <h2 className="settings-card-title">Languages</h2>

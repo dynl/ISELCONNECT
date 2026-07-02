@@ -148,7 +148,18 @@ function ProfileTab({ onLogout }) {
   const fullAddress = hasAddress ? addressParts.join(", ") : "None";
 
   return (
-    <div className="pt-container">
+    /* =====================================================================
+       THE FIX: Added page-transition, height: 100%, overflowY: auto, and paddingBottom!
+       ===================================================================== */
+    <div
+      className="pt-container page-transition"
+      style={{
+        height: "100%",
+        overflowY: "auto",
+        paddingBottom: "120px",
+        boxSizing: "border-box",
+      }}
+    >
       {showSaveModal && (
         <div className="modal-overlay">
           <div className="modal-box">
@@ -195,7 +206,8 @@ function ProfileTab({ onLogout }) {
 
         {!isEditing ? (
           <>
-            <div className="pt-data-grid">
+            {/* Added page-transition here */}
+            <div className="pt-data-grid page-transition">
               <div className="pt-data-row">
                 <span className="pt-data-label">Email:</span>
                 <span
@@ -222,7 +234,8 @@ function ProfileTab({ onLogout }) {
               </div>
             </div>
 
-            <div className="profile-btn-row">
+            {/* Added page-transition here */}
+            <div className="profile-btn-row page-transition">
               <button onClick={handleEditClick} className="profile-btn-edit">
                 <Edit size={20} /> EDIT PROFILE
               </button>
@@ -235,7 +248,8 @@ function ProfileTab({ onLogout }) {
             </div>
           </>
         ) : (
-          <div className="pt-edit-form-wrapper">
+          /* Added page-transition here */
+          <div className="pt-edit-form-wrapper page-transition">
             <div className="edit-input-group">
               <label>{t.firstName}</label>
               <input

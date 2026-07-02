@@ -3,15 +3,12 @@ import { ChevronLeft, Info, LogOut } from "lucide-react";
 import { translations } from "./translations";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
-import AboutUs from "./AboutUs"; // Ensure this import matches exactly where you saved the file!
+import AboutUs from "./AboutUs"; 
 
 function SettingsTab({ onBack, onLogout }) {
   const savedLanguage = localStorage.getItem("appLanguage") || "English";
-  const [fontSize, setFontSize] = useState("2");
   const [language, setLanguage] = useState(savedLanguage);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  
-  // New state to control the About Us overlay
   const [showAboutUs, setShowAboutUs] = useState(false); 
   
   const t = translations[savedLanguage];
@@ -35,13 +32,15 @@ function SettingsTab({ onBack, onLogout }) {
     if (onLogout) onLogout();
   };
 
-  // If the state is true, render the About Us component and pass it the function to close itself
   if (showAboutUs) {
     return <AboutUs onBack={() => setShowAboutUs(false)} />;
   }
 
   return (
-    <div className="settings-page">
+    <div 
+      className="settings-page page-transition"
+      style={{ height: "100%", overflowY: "auto", paddingBottom: "120px", boxSizing: "border-box" }}
+    >
       {/* LOGOUT CONFIRMATION MODAL */}
       {showLogoutModal && (
         <div className="modal-overlay">
@@ -72,37 +71,6 @@ function SettingsTab({ onBack, onLogout }) {
       </div>
 
       <div className="settings-content-wrapper">
-        {/* APPEARANCE CARD */}
-        <div className="settings-card">
-          <h2 className="settings-card-title">{t.appearance}</h2>
-          <h3
-            className="section-label"
-            style={{
-              marginBottom: "10px",
-              color: "#64748b",
-              fontSize: "0.9rem",
-            }}
-          >
-            {t.fontSize}
-          </h3>
-          <div className="font-slider-container">
-            <div className="font-labels">
-              <span className="st-font-label-sm">Aa</span>
-              <span className="st-font-label-md">Aa</span>
-              <span className="st-font-label-lg">Aa</span>
-            </div>
-            <input
-              type="range"
-              min="1"
-              max="3"
-              step="1"
-              value={fontSize}
-              onChange={(e) => setFontSize(e.target.value)}
-              className="font-slider"
-            />
-          </div>
-        </div>
-
         {/* LANGUAGES CARD */}
         <div className="settings-card">
           <h2 className="settings-card-title">{t.languages}</h2>
@@ -140,7 +108,6 @@ function SettingsTab({ onBack, onLogout }) {
             <LogOut size={20} /> Log Out Account
           </button>
 
-          {/* Upgraded from a static div to a clickable button element */}
           <button
             onClick={() => setShowAboutUs(true)}
             style={{
@@ -168,4 +135,4 @@ function SettingsTab({ onBack, onLogout }) {
   );
 }
 
-export default SettingsTab; 
+export default SettingsTab;

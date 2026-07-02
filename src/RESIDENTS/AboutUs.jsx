@@ -9,9 +9,9 @@ import {
 } from "lucide-react";
 
 function AboutUs({ onBack }) {
-  // We wrap the entire design in a variable called "aboutContent"
   const aboutContent = (
     <div
+      className="page-transition" /* PAGE TRANSITION ADDED HERE */
       style={{
         position: "fixed",
         top: 0,
@@ -19,7 +19,7 @@ function AboutUs({ onBack }) {
         width: "100vw",
         height: "100vh",
         backgroundColor: "#f8fafc",
-        zIndex: 999999, // Guaranteed to sit on top of everything
+        zIndex: 999999, 
         overflowY: "auto",
         display: "flex",
         flexDirection: "column",
@@ -277,7 +277,6 @@ function AboutUs({ onBack }) {
     </div>
   );
 
-  // Here is the magic part! We tell React to render this directly into the <body> tag.
   return createPortal(aboutContent, document.body);
 }
 
