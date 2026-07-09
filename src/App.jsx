@@ -1,17 +1,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
-
+import LoadingScreen from "./components/LoadingScreen";
 import RoleSelection from "./RoleSelection";
 import Auth from "./RESIDENTS/Auth";
 import ResidentDashboard from "./RESIDENTS/ResidentDashboard";
 import LinemanAuth from "./LINEMAN/LinemanAuth";
 import LinemanDashboard from "./LINEMAN/LinemanDashboard";
 
-
-
-
-
-// import LinemanRegister from "./TESTING/LinemanRegister"; 
+// import LinemanRegister from "./TESTING/LinemanRegister";
 function App() {
   const [session, setSession] = useState(null);
   const [userRole, setUserRole] = useState(null);
@@ -19,7 +15,6 @@ function App() {
   const [appLoading, setAppLoading] = useState(true);
   const [roleFetching, setRoleFetching] = useState(false);
   const [authView, setAuthView] = useState("selection");
-
 
   const isDevRoute = window.location.pathname === "/dev-lineman-signup";
 
@@ -89,17 +84,26 @@ function App() {
     setRoleFetching(false);
   };
 
-  if (appLoading) {
+  if (appLoading || roleFetching) {
     return (
-      <div className="app-loading-screen">
-        <h2>Loading ISELCONNECT...</h2>
+      <div
+        style={{
+          height: "100vh",
+          width: "100vw",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor:
+            "#f8fafc" /* Soft light background so the shapes pop! */,
+        }}
+      >
+        <LoadingScreen message="LOADING ISELCONNECT..." />
       </div>
     );
   }
 
-
   if (isDevRoute) {
-    return <LinemanRegister onBack={() => window.location.href = "/"} />;
+    return <LinemanRegister onBack={() => (window.location.href = "/")} />;
   }
 
   if (session && userRole) {
@@ -140,31 +144,9 @@ function App() {
 
 export default App;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // import React from 'react';
 // // Make sure this path is correct based on where you saved it!
-// import AdminScheduleAdvisory from './TESTING/AdminScheduleAdvisory'; 
+// import AdminScheduleAdvisory from './TESTING/AdminScheduleAdvisory';
 
 // function App() {
 //   return (

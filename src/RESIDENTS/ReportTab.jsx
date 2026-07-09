@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom"; // 1. IMPORTED PORTAL
 import Webcam from "react-webcam";
 import L from "leaflet";
-import "leaflet/dist/leaflet.css"; // Leaflet CSS import
+import "leaflet/dist/leaflet.css";
 import { Camera as CameraIcon, ChevronLeft, ChevronDown } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
+import { translations } from "../components/translations";
 
-// =====================================================================
-// CUSTOM SEARCHABLE DROPDOWN COMPONENT
-// =====================================================================
 const SearchableDropdown = ({
   options,
   value,
@@ -39,7 +38,6 @@ const SearchableDropdown = ({
   const filteredOptions = options.filter((opt) =>
     opt.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
-
   const displayValue = isOpen
     ? searchTerm
     : selectedOption
@@ -71,7 +69,6 @@ const SearchableDropdown = ({
         disabled={disabled}
         autoComplete="off"
       />
-
       <div
         style={{
           position: "absolute",
@@ -83,7 +80,6 @@ const SearchableDropdown = ({
       >
         <ChevronDown size={20} color="#64748b" />
       </div>
-
       {isOpen && (
         <div
           style={{
@@ -140,9 +136,11 @@ const SearchableDropdown = ({
     </div>
   );
 };
-// =====================================================================
 
 function ReportTab({ isActive }) {
+  const currentLang = localStorage.getItem("appLanguage") || "English";
+  const t = translations[currentLang];
+
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [coordinates, setCoordinates] = useState({ lat: "", lon: "" });
@@ -168,6 +166,18 @@ function ReportTab({ isActive }) {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
 
+  // 2. ADDED: This locks the screen scrolling whenever the modal is open!
+  useEffect(() => {
+    if (showSuccessModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showSuccessModal]);
+
   useEffect(() => {
     const fetchInitialData = async () => {
       const { data: typesData, error: typesError } = await supabase
@@ -175,14 +185,12 @@ function ReportTab({ isActive }) {
         .select("id, name")
         .order("id", { ascending: true });
       if (typesData && !typesError) setReportTypes(typesData);
-
       const { data: munData, error: munError } = await supabase
         .from("municipalities")
         .select("id, name, branch_id")
         .order("name", { ascending: true });
       if (munData && !munError) setMunicipalities(munData);
     };
-
     fetchInitialData();
   }, []);
 
@@ -197,10 +205,8 @@ function ReportTab({ isActive }) {
         .select("id, name")
         .eq("municipality_id", formData.municipality_id)
         .order("name", { ascending: true });
-
       if (data && !error) setBarangays(data);
     };
-
     fetchBarangays();
   }, [formData.municipality_id]);
 
@@ -319,13 +325,13 @@ function ReportTab({ isActive }) {
         );
 
       const typeName =
-        reportTypes.find((t) => t.id === parseInt(formData.report_type_id))
-          ?.name || "issue";
+        reportTypes.find(
+          (type) => type.id === parseInt(formData.report_type_id),
+        )?.name || "issue";
       await logSystemAction(
         "SUBMIT_REPORT",
         `Resident submitted a new ${typeName} report at ${formData.landmark.trim()}.`,
       );
-
       setShowSuccessModal(true);
     } catch (err) {
       setError(err.message);
@@ -334,12 +340,7 @@ function ReportTab({ isActive }) {
     }
   };
 
-  // =====================================================================
-  // LEAFLET MAP IMPLEMENTATION
-  // =====================================================================
   useEffect(() => {
-    // If we lose coordinates (e.g., successful submission clears them),
-    // cleanly destroy the map instance to prevent Leaflet initialization errors.
     if (!isActive || !coordinates.lat || !coordinates.lon) {
       if (mapRef.current) {
         mapRef.current.remove();
@@ -347,38 +348,27 @@ function ReportTab({ isActive }) {
       }
       return;
     }
-
     const lat = parseFloat(coordinates.lat);
     const lon = parseFloat(coordinates.lon);
-
     setTimeout(() => {
       if (!mapContainerRef.current) return;
-
-      // 1. Create a custom HTML marker that matches your Yellow/Navy theme
       const customIcon = L.divIcon({
         className: "custom-leaflet-marker",
         html: `<div style="background-color: #facc15; width: 22px; height: 22px; border-radius: 50%; border: 4px solid #1b0b8c; box-shadow: 0 4px 8px rgba(0,0,0,0.4);"></div>`,
         iconSize: [22, 22],
-        iconAnchor: [11, 11], // Centers the dot perfectly on the coordinates
+        iconAnchor: [11, 11],
       });
-
-      // 2. Initialize the map if it doesn't exist yet
       if (!mapRef.current) {
         mapRef.current = L.map(mapContainerRef.current, {
-          zoomControl: false, // Optional: Hides the default + - buttons for a cleaner UI
+          zoomControl: false,
         }).setView([lat, lon], 16);
-
-        // Standard OpenStreetMap free tiles!
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution: "&copy; OpenStreetMap contributors",
           maxZoom: 19,
         }).addTo(mapRef.current);
       } else {
-        // If map exists, just update the camera view
         mapRef.current.setView([lat, lon], 16);
       }
-
-      // 3. Update or replace the marker
       if (markerRef.current) markerRef.current.remove();
       markerRef.current = L.marker([lat, lon], { icon: customIcon }).addTo(
         mapRef.current,
@@ -388,48 +378,64 @@ function ReportTab({ isActive }) {
 
   return (
     <div className="bg-navy-tab">
-      {showSuccessModal && (
-        <div className="modal-overlay">
-          <div className="modal-box">
-            <h3 className="modal-title" style={{ fontSize: "1.8rem" }}>
-              REPORTED
-            </h3>
-            <p className="modal-text">
-              Your report is now
-              <br />
-              under review
-            </p>
-            <button
-              className="modal-btn confirm-btn"
-              style={{
-                backgroundColor: "#1b0b8c",
-                width: "100%",
-                borderRadius: "25px",
-              }}
-              onClick={() => {
-                setShowSuccessModal(false);
-                setImagePreview(null);
-                setCoordinates({ lat: "", lon: "" });
-                setFormData({
-                  report_type_id: "",
-                  municipality_id: "",
-                  barangay_id: "",
-                  purok_sitio: "",
-                  landmark: "",
-                  description: "",
-                });
-              }}
-            >
-              OK!
-            </button>
-          </div>
-        </div>
-      )}
+      {/* 3. ADDED: createPortal wraps the modal to guarantee it is full screen */}
+      {showSuccessModal &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              backgroundColor: "rgba(0, 0, 0, 0.65)",
+              zIndex: 999999,
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <div className="modal-box" style={{ margin: "0 20px" }}>
+              <h3 className="modal-title" style={{ fontSize: "1.8rem" }}>
+                {t.reported}
+              </h3>
+              <p
+                className="modal-text"
+                dangerouslySetInnerHTML={{
+                  __html: t.reportReview.replace("now", "now<br />"),
+                }}
+              />
+              <button
+                className="modal-btn confirm-btn"
+                style={{
+                  backgroundColor: "#1b0b8c",
+                  width: "100%",
+                  borderRadius: "25px",
+                }}
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  setImagePreview(null);
+                  setCoordinates({ lat: "", lon: "" });
+                  setFormData({
+                    report_type_id: "",
+                    municipality_id: "",
+                    barangay_id: "",
+                    purok_sitio: "",
+                    landmark: "",
+                    description: "",
+                  });
+                }}
+              >
+                OK!
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {!isCameraOpen ? (
         <div className="report-form-container">
-          <h1 className="report-title text-yellow">REPORT</h1>
-
+          <h1 className="report-title text-yellow">{t.reportTitle}</h1>
           <div
             className="photo-capture-box"
             onClick={() => setIsCameraOpen(true)}
@@ -443,12 +449,11 @@ function ReportTab({ isActive }) {
             ) : (
               <div className="placeholder-content">
                 <CameraIcon size={48} strokeWidth={1.5} color="#1b0b8c" />
-                <h2>CAPTURE A PHOTO</h2>
+                <h2>{t.capturePhoto}</h2>
               </div>
             )}
           </div>
 
-          {/* Map Container uses z-index inline to ensure it doesn't overlap dropdowns */}
           {coordinates.lat && (
             <div
               ref={mapContainerRef}
@@ -461,9 +466,8 @@ function ReportTab({ isActive }) {
             className="location-note text-center"
             style={{ textAlign: "center", marginBottom: "15px" }}
           >
-            <strong className="text-yellow">Note:</strong> Turn on the location
-            of your device before capturing a photo to easily get the Longitude
-            and Latitude location
+            <strong className="text-yellow">{t.noteLabel}</strong>{" "}
+            {t.locationNote}
           </p>
 
           {error && (
@@ -487,34 +491,31 @@ function ReportTab({ isActive }) {
             <input
               type="text"
               className="rounded-input"
-              placeholder="Longitude"
+              placeholder={t.longitude}
               value={coordinates.lon}
               readOnly
             />
             <input
               type="text"
               className="rounded-input"
-              placeholder="Latitude"
+              placeholder={t.latitude}
               value={coordinates.lat}
               readOnly
             />
-
             <SearchableDropdown
               name="report_type_id"
               options={reportTypes}
               value={formData.report_type_id}
               onChange={handleInputChange}
-              placeholder="Report Type"
+              placeholder={t.reportType}
             />
-
             <SearchableDropdown
               name="municipality_id"
               options={municipalities}
               value={formData.municipality_id}
               onChange={handleInputChange}
-              placeholder="Incident Municipality"
+              placeholder={t.incidentMun}
             />
-
             <SearchableDropdown
               name="barangay_id"
               options={barangays}
@@ -523,25 +524,23 @@ function ReportTab({ isActive }) {
               placeholder={
                 !formData.municipality_id
                   ? "Select Municipality first"
-                  : "Incident Barangay"
+                  : t.incidentBrgy
               }
               disabled={!formData.municipality_id}
             />
-
             <input
               type="text"
               name="purok_sitio"
               className="rounded-input"
-              placeholder="Purok / Sitio (Optional)"
+              placeholder={t.purokSitio}
               value={formData.purok_sitio}
               onChange={handleInputChange}
             />
-
             <input
               type="text"
               name="landmark"
               className="rounded-input"
-              placeholder="Landmark / Nearest Establishment"
+              placeholder={t.landmarkPlaceholder}
               value={formData.landmark}
               onChange={handleInputChange}
             />
@@ -549,7 +548,7 @@ function ReportTab({ isActive }) {
               type="text"
               name="description"
               className="rounded-input"
-              placeholder="Description (Optional)"
+              placeholder={t.descOptional}
               value={formData.description}
               onChange={handleInputChange}
             />
@@ -560,7 +559,7 @@ function ReportTab({ isActive }) {
             onClick={handleSubmitReport}
             disabled={isSubmitting}
           >
-            {isSubmitting ? "SUBMITTING..." : "SUBMIT"}
+            {isSubmitting ? t.submitting : t.submit}
           </button>
         </div>
       ) : (
@@ -602,7 +601,7 @@ function ReportTab({ isActive }) {
               <ChevronLeft size={32} color="#fff" />
             </button>
             <span style={{ color: "#fff", fontWeight: "bold" }}>
-              EVIDENCE CAMERA
+              {t.evidenceCamera}
             </span>
             <div style={{ width: 32 }}></div>
           </div>
@@ -651,7 +650,7 @@ function ReportTab({ isActive }) {
                 fontSize: "0.9rem",
               }}
             >
-              CAPTURE A PHOTO
+              {t.capturePhoto}
             </p>
             <button
               onClick={capture}

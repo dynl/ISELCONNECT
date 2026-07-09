@@ -2,11 +2,15 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { User, Edit, Settings, Save, X } from "lucide-react";
 import SettingsTab from "./SettingsTab";
-import { translations } from "./translations";
 import logo from "../assets/ISELCONNECT.png";
 import { logSystemAction } from "../utils/logger";
+import LoadingScreen from "../components/LoadingScreen";
+
+// 1. Import your master dictionary
+import { translations } from "../components/translations";
 
 function ProfileTab({ onLogout }) {
+  // 2. Fetch the saved language and get the right dictionary list
   const currentLang = localStorage.getItem("appLanguage") || "English";
   const t = translations[currentLang];
 
@@ -48,7 +52,7 @@ function ProfileTab({ onLogout }) {
       if (dbError) throw dbError;
       setProfile(userData);
     } catch (error) {
-      setErrorMsg(t.errorProfile);
+      setErrorMsg(t.errorProfile); // Uses translation
     } finally {
       setLoading(false);
     }
@@ -103,18 +107,14 @@ function ProfileTab({ onLogout }) {
       setIsEditing(false);
       setShowSaveModal(false);
     } catch (error) {
-      alert(t.errorUpdate);
+      alert(t.errorUpdate); // Uses translation
     } finally {
       setIsSaving(false);
     }
   };
 
-  if (loading)
-    return (
-      <div className="home-loading-text" style={{ padding: "40px" }}>
-        {t.loadingProfile}
-      </div>
-    );
+  if (loading) return <LoadingScreen message={t.loadingProfile} />; // Uses translation
+
   if (errorMsg)
     return (
       <div
@@ -124,6 +124,7 @@ function ProfileTab({ onLogout }) {
         {errorMsg}
       </div>
     );
+
   if (showSettings)
     return (
       <SettingsTab onBack={() => setShowSettings(false)} onLogout={onLogout} />
@@ -136,7 +137,6 @@ function ProfileTab({ onLogout }) {
     .replace(/\s+/g, " ")
     .trim();
 
-  // === UPDATED ADDRESS LOGIC ===
   const hasAddress = profile.barangays?.name || profile.municipalities?.name;
   const addressParts = [
     profile.purok_sitio,
@@ -148,9 +148,6 @@ function ProfileTab({ onLogout }) {
   const fullAddress = hasAddress ? addressParts.join(", ") : "None";
 
   return (
-    /* =====================================================================
-       THE FIX: Added page-transition, height: 100%, overflowY: auto, and paddingBottom!
-       ===================================================================== */
     <div
       className="pt-container page-transition"
       style={{
@@ -163,6 +160,7 @@ function ProfileTab({ onLogout }) {
       {showSaveModal && (
         <div className="modal-overlay">
           <div className="modal-box">
+            {/* Translated Title & Text */}
             <h3 className="modal-title">{t.confirmChangesTitle}</h3>
             <p className="modal-text">{t.confirmChangesText}</p>
             <div className="modal-buttons">
@@ -201,15 +199,16 @@ function ProfileTab({ onLogout }) {
 
       <div className="pt-info-wrapper">
         <h2 className="pt-name-heading">
+          {/* Translated Edit Title */}
           {isEditing ? t.editProfileTitle : fullName}
         </h2>
 
         {!isEditing ? (
           <>
-            {/* Added page-transition here */}
             <div className="pt-data-grid page-transition">
               <div className="pt-data-row">
-                <span className="pt-data-label">Email:</span>
+                {/* Translated Labels */}
+                <span className="pt-data-label">{t.emailLabel}</span>
                 <span
                   className="pt-data-value"
                   style={{ wordBreak: "break-all" }}
@@ -234,22 +233,21 @@ function ProfileTab({ onLogout }) {
               </div>
             </div>
 
-            {/* Added page-transition here */}
             <div className="profile-btn-row page-transition">
               <button onClick={handleEditClick} className="profile-btn-edit">
-                <Edit size={20} /> EDIT PROFILE
+                <Edit size={20} /> {t.editProfileTitle}
               </button>
               <button
                 onClick={() => setShowSettings(true)}
                 className="profile-btn-settings"
               >
-                <Settings size={20} /> SETTINGS
+                <Settings size={20} /> {t.settingsTitle}
               </button>
             </div>
           </>
         ) : (
-          /* Added page-transition here */
           <div className="pt-edit-form-wrapper page-transition">
+            {/* Translated Form Inputs */}
             <div className="edit-input-group">
               <label>{t.firstName}</label>
               <input

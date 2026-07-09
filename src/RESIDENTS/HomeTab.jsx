@@ -180,10 +180,14 @@ function HomeTab() {
             cursor: "pointer",
             textAlign: "center",
             lineHeight: "1.3",
-            transition: "all 0.2s ease"
+            transition: "all 0.2s ease",
           }}
-          onMouseOver={(e) => { e.currentTarget.style.backgroundColor = "rgba(27, 11, 140, 0.05)" }}
-          onMouseOut={(e) => { e.currentTarget.style.backgroundColor = "transparent" }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(27, 11, 140, 0.05)";
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+          }}
         >
           EMERGENCY
           <br />

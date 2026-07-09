@@ -1,0 +1,60 @@
+.loading-screen-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 50vh;
+}
+
+.loader-shapes {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+/* Base shape styles */
+.loader-shape {
+  width: 22px;
+  height: 22px;
+  animation: bounceShape 0.5s infinite alternate ease-in-out;
+}
+
+/* Shape 1: Navy Circle */
+.loader-shape:nth-child(1) { 
+  background-color: #1b0b8c;
+  border-radius: 50%; 
+  animation-delay: 0s; 
+}
+
+/* Shape 2: Yellow Square */
+.loader-shape:nth-child(2) { 
+  background-color: #f5c400;
+  border-radius: 6px; 
+  animation-delay: 0.15s; 
+}
+
+/* Shape 3: Navy Circle */
+.loader-shape:nth-child(3) { 
+  background-color: #1b0b8c;
+  border-radius: 50%; 
+  animation-delay: 0.3s; 
+}
+
+/* Shape 4: Yellow Square */
+.loader-shape:nth-child(4) { 
+  background-color: #f5c400;
+  border-radius: 6px; 
+  animation-delay: 0.45s; 
+}
+
+/* The Bouncing Animation */
+@keyframes bounceShape {
+  0% { 
+    transform: translateY(0) rotate(0deg); 
+  }
+  100% { 
+    transform: translateY(-20px) rotate(45deg); 
+  }
+}

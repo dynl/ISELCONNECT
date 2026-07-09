@@ -4,8 +4,12 @@ import "leaflet/dist/leaflet.css";
 import { ChevronLeft, Save, Edit2, X, CheckCircle, MapPin } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
+import { translations } from "../components/translations";
 
 function ResidentReportDetail({ report, onBack, onReportUpdated }) {
+  const currentLang = localStorage.getItem("appLanguage") || "English";
+  const t = translations[currentLang];
+
   const [loading, setLoading] = useState(false);
   const [reportTypes, setReportTypes] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
@@ -32,7 +36,6 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
       };
       fetchTypes();
     }
-
     const navBar = document.querySelector(".bottom-nav-wrapper");
     if (navBar) navBar.style.display = "none";
     return () => {
@@ -40,9 +43,6 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
     };
   }, [isPending]);
 
-  // ==========================================
-  // LEAFLET MAP INITIALIZATION
-  // ==========================================
   useEffect(() => {
     if (!showMap) {
       if (mapRef.current) {
@@ -51,14 +51,11 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
       }
       return;
     }
-
-    // Default to a central Isabela location if coordinates are somehow missing
     const lat = report.latitude ? parseFloat(report.latitude) : 16.7805;
     const lon = report.longitude ? parseFloat(report.longitude) : 121.6508;
 
     setTimeout(() => {
       if (!mapContainerRef.current) return;
-
       const customIcon = L.divIcon({
         className: "custom-leaflet-marker",
         html: `<div style="background-color: #facc15; width: 22px; height: 22px; border-radius: 50%; border: 4px solid #1b0b8c; box-shadow: 0 4px 8px rgba(0,0,0,0.4);"></div>`,
@@ -70,7 +67,6 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
         mapRef.current = L.map(mapContainerRef.current, {
           zoomControl: false,
         }).setView([lat, lon], 16);
-
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution: "&copy; OpenStreetMap contributors",
           maxZoom: 19,
@@ -78,7 +74,6 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
       } else {
         mapRef.current.setView([lat, lon], 16);
       }
-
       if (markerRef.current) markerRef.current.remove();
       markerRef.current = L.marker([lat, lon], { icon: customIcon }).addTo(
         mapRef.current,
@@ -121,18 +116,13 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
         })
         .eq("id", report.id)
         .select();
-
       if (error) throw error;
-
-      if (!data || data.length === 0) {
+      if (!data || data.length === 0)
         throw new Error("Update blocked by database security policies.");
-      }
-
       await logSystemAction(
         "UPDATE_REPORT",
         `Resident updated report #${report.id}. New Landmark: ${formData.landmark.trim()}`,
       );
-
       setShowSuccessModal(true);
     } catch (err) {
       alert("Failed to update report. Please try again.\n" + err.message);
@@ -142,8 +132,8 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
   };
 
   const currentReportTypeName =
-    reportTypes.find((t) => t.id === parseInt(formData.report_type_id))?.name ||
-    report.report_types?.name;
+    reportTypes.find((type) => type.id === parseInt(formData.report_type_id))
+      ?.name || report.report_types?.name;
 
   if (showMap) {
     return (
@@ -192,11 +182,10 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
               fontSize: "1rem",
             }}
           >
-            LOCATION MAP
+            {t.viewLocationMap}
           </span>
         </div>
         <div style={{ flex: 1, width: "100%", position: "relative" }}>
-          {/* LEAFLET MAP CONTAINER */}
           <div
             ref={mapContainerRef}
             style={{ position: "absolute", top: 0, bottom: 0, width: "100%" }}
@@ -245,7 +234,7 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
           >
             <ChevronLeft size={28} strokeWidth={3} />
           </button>
-          <h2>{isEditing ? "EDIT REPORT" : "REPORT DETAILS"}</h2>
+          <h2>{isEditing ? t.editReportTitle : t.reportDetailsTitle}</h2>
         </div>
 
         <div className="detail-photo-section rrd-mb-20">
@@ -256,7 +245,7 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
               className="detail-photo"
             />
           ) : (
-            <div className="no-photo">No Original Photo</div>
+            <div className="no-photo">{t.noOriginalPhoto}</div>
           )}
         </div>
 
@@ -280,16 +269,14 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
             transition: "transform 0.1s",
             marginBottom: "20px",
           }}
-          onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.98)")}
-          onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >
           <MapPin size={22} />
-          VIEW LOCATION MAP
+          {t.viewLocationMap}
         </button>
 
         <div className="detail-info-section rrd-info-section">
           <div className="rrd-status-row">
-            <h3 className="rrd-status-label">STATUS:</h3>
+            <h3 className="rrd-status-label">{t.statusLabel}</h3>
             <span
               className={`rrd-status-badge ${isPending ? "rrd-status-pending" : "rrd-status-resolved"}`}
             >
@@ -299,12 +286,9 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
 
           {isEditing ? (
             <div className="report-inputs rrd-inputs-wrapper">
-              <p className="rrd-inputs-desc">
-                Update your report details below.
-              </p>
-
+              <p className="rrd-inputs-desc">{t.updateReportDesc}</p>
               <div className="edit-input-group">
-                <label className="rrd-input-label">Report Type</label>
+                <label className="rrd-input-label">{t.reportType}</label>
                 <select
                   name="report_type_id"
                   value={formData.report_type_id}
@@ -321,7 +305,6 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
                   ))}
                 </select>
               </div>
-
               <div className="edit-input-group">
                 <label className="rrd-input-label">Landmark</label>
                 <input
@@ -332,7 +315,6 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
                   className="edit-input"
                 />
               </div>
-
               <div className="edit-input-group">
                 <label className="rrd-input-label">Description</label>
                 <textarea
@@ -342,17 +324,16 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
                   className="edit-input rrd-textarea"
                 />
               </div>
-
               <div className="rrd-btn-row">
                 <button onClick={handleCancelEdit} className="rrd-btn-cancel">
-                  <X size={20} /> CANCEL
+                  <X size={20} /> {t.cancelBtn}
                 </button>
                 <button
                   onClick={handleUpdateReport}
                   disabled={loading}
                   className="rrd-btn-save"
                 >
-                  <Save size={20} /> {loading ? "SAVING..." : "SAVE"}
+                  <Save size={20} /> {loading ? t.savingBtn : t.saveBtn}
                 </button>
               </div>
             </div>
@@ -371,27 +352,23 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
                     fontWeight: "bold",
                   }}
                 >
-                  This report is currently being processed and can no longer be
-                  edited.
+                  {t.processingMsg}
                 </p>
               )}
-
               <div>
-                <p className="rrd-field-label">Report Type</p>
+                <p className="rrd-field-label">{t.reportType}</p>
                 <p className="rrd-field-value">{currentReportTypeName}</p>
               </div>
               <hr className="rrd-hr" />
-
               <div>
                 <p className="rrd-field-label">Landmark</p>
                 <p className="rrd-field-value-normal">{formData.landmark}</p>
               </div>
               <hr className="rrd-hr" />
-
               {report.latitude && report.longitude && (
                 <>
                   <div>
-                    <p className="rrd-field-label">Coordinates</p>
+                    <p className="rrd-field-label">{t.coordinatesLabel}</p>
                     <p
                       className="rrd-field-value-normal"
                       style={{ fontFamily: "monospace", color: "#64748b" }}
@@ -402,25 +379,22 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
                   <hr className="rrd-hr" />
                 </>
               )}
-
               <div>
                 <p className="rrd-field-label">Description</p>
                 <p className="rrd-field-value-normal">
-                  {formData.description || "No description provided."}
+                  {formData.description || t.noDescProvided}
                 </p>
               </div>
-
               {isPending && (
                 <button onClick={handleEditClick} className="rrd-edit-btn">
-                  <Edit2 size={20} /> EDIT REPORT
+                  <Edit2 size={20} /> {t.editReportTitle}
                 </button>
               )}
-
               {report.resolved_photo_url && (
                 <div className="rrd-evidence-box">
                   <div className="rrd-evidence-header">
                     <CheckCircle size={20} color="#16a34a" />
-                    <h3 className="rrd-evidence-title">FIXED EVIDENCE</h3>
+                    <h3 className="rrd-evidence-title">{t.fixedEvidence}</h3>
                   </div>
                   <img
                     src={report.resolved_photo_url}

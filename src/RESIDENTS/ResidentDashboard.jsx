@@ -5,6 +5,7 @@ import AdvisoryTab from "./AdvisoryTab"; // <-- Imported the new tab
 import ReportTab from "./ReportTab";
 import NotificationTab from "./NotificationTab";
 import ProfileTab from "./ProfileTab";
+import { translations } from "../components/translations";
 
 function ResidentDashboard({ session, onLogout }) {
   const [activeTab, setActiveTab] = useState("home");

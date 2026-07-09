@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Phone, Search, AlertTriangle, ChevronLeft } from "lucide-react";
+import LoadingScreen from "../components/LoadingScreen";
+
+// 1. Import dictionary
+import { translations } from "../components/translations";
 
 function HotlinesTab({ onBack }) {
+  // 2. Setup the translation variable
+  const currentLang = localStorage.getItem("appLanguage") || "English";
+  const t = translations[currentLang];
+
   const [branches, setBranches] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -17,33 +25,21 @@ function HotlinesTab({ onBack }) {
           .select("branch_id, branch_name, branch_hotline")
           .order("branch_name", { ascending: true });
 
-        if (dbError) {
-          console.error("Supabase Error:", dbError);
-          throw dbError;
-        }
+        if (dbError) throw dbError;
 
         if (data) {
-          // 1. Find the Main Office record
           const mainOffice = data.find(
             (branch) => branch.branch_name === "ISELCO-1 Main Office",
           );
-
-          // 2. Get all other branches EXCEPT the Main Office
           const otherBranches = data.filter(
             (branch) => branch.branch_name !== "ISELCO-1 Main Office",
           );
-
-          // 3. Combine them, forcing the Main Office to index 0 (the top)
           const sortedBranches = mainOffice
             ? [mainOffice, ...otherBranches]
             : otherBranches;
-
           setBranches(sortedBranches);
-        } else {
-          setBranches([]);
         }
       } catch (err) {
-        console.error("Error fetching hotlines:", err.message);
         setError("Failed to load hotline numbers.");
       } finally {
         setLoading(false);
@@ -65,7 +61,7 @@ function HotlinesTab({ onBack }) {
 
   return (
     <div
-      className="bg-navy-tab page-transition" /* PAGE TRANSITION ADDED HERE */
+      className="bg-navy-tab page-transition"
       style={{
         height: "100vh",
         position: "absolute",
@@ -79,11 +75,7 @@ function HotlinesTab({ onBack }) {
         paddingTop: 0,
       }}
     >
-      {/* =========================================
-          STICKY HEADER & SEARCH SECTION 
-      ========================================= */}
       <div style={{ padding: "15px 20px 15px 20px", flexShrink: 0 }}>
-        {/* Back Button & Title Header */}
         <div
           style={{
             display: "flex",
@@ -104,12 +96,6 @@ function HotlinesTab({ onBack }) {
             <ChevronLeft size={32} color="#facc15" />
           </button>
           <div style={{ flex: 1, textAlign: "center", paddingRight: "32px" }}>
-            <h1
-              className="report-title text-yellow"
-              style={{ marginBottom: 0, fontSize: "1.2rem" }}
-            >
-              EMERGENCY
-            </h1>
             <h2
               className="text-white"
               style={{
@@ -119,16 +105,16 @@ function HotlinesTab({ onBack }) {
                 letterSpacing: "1px",
               }}
             >
-              HOTLINES
+              {t.emergencyHotlines} {/* Translated Title */}
             </h2>
           </div>
         </div>
-        {/* Search Bar */}
+
         <div style={{ position: "relative" }}>
           <input
             type="text"
             className="rounded-input"
-            placeholder="Search branch office..."
+            placeholder={t.searchBranch} /* Translated Placeholder */
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
@@ -151,9 +137,6 @@ function HotlinesTab({ onBack }) {
         </div>
       </div>
 
-      {/* =========================================
-          SCROLLABLE LIST SECTION 
-      ========================================= */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 100px 20px" }}>
         {error && (
           <div
@@ -198,21 +181,15 @@ function HotlinesTab({ onBack }) {
             }}
           >
             Tap on any branch hotline card below to directly call the office for
-            immediate assistance regarding power hazards or line faults.
+            immediate assistance.
           </p>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {loading ? (
-            <p
-              style={{
-                color: "#ffffff",
-                textAlign: "center",
-                fontWeight: "bold",
-              }}
-            >
-              Loading hotlines...
-            </p>
+            <LoadingScreen
+              message={t.loadingHotlines}
+            /> /* Translated Loading Message */
           ) : filteredBranches.length === 0 ? (
             <p
               style={{
@@ -221,7 +198,7 @@ function HotlinesTab({ onBack }) {
                 fontSize: "0.9rem",
               }}
             >
-              No branches found matching your search.
+              {t.noBranches} {/* Translated No Results */}
             </p>
           ) : (
             filteredBranches.map((branch) => (
@@ -267,7 +244,6 @@ function HotlinesTab({ onBack }) {
                       {formatPhoneNumber(branch.branch_hotline)}
                     </p>
                   </div>
-
                   <div
                     style={{
                       backgroundColor: "rgba(27, 11, 140, 0.05)",

@@ -2,8 +2,13 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Bell } from "lucide-react";
 import "../Lineman.css";
+import { translations } from "../components/translations";
+import LoadingScreen from "../components/LoadingScreen";
 
 function LinemanNotificationTab() {
+  const currentLang = localStorage.getItem("appLanguage") || "English";
+  const t = translations[currentLang];
+
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -37,12 +42,11 @@ function LinemanNotificationTab() {
   const formatDateTime = (dateString) => {
     if (!dateString) return "";
     const date = new Date(dateString);
-    const formattedTime = date.toLocaleTimeString("en-US", {
+    return date.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
     });
-    return formattedTime;
   };
 
   return (
@@ -54,7 +58,6 @@ function LinemanNotificationTab() {
         boxSizing: "border-box",
       }}
     >
-      {/* HEADER MATCHING THE MOCKUP */}
       <h2
         style={{
           textAlign: "center",
@@ -66,20 +69,12 @@ function LinemanNotificationTab() {
           textTransform: "uppercase",
         }}
       >
-        NOTIFICATION
+        {t.notificationTitle}
       </h2>
 
       <div className="notification-list">
         {loading ? (
-          <p
-            style={{
-              textAlign: "center",
-              color: "#ffffff",
-              fontWeight: "bold",
-            }}
-          >
-            Loading your notifications...
-          </p>
+          <LoadingScreen message={t.loadingNotifs} />
         ) : notifications.length === 0 ? (
           <div
             style={{
@@ -96,7 +91,7 @@ function LinemanNotificationTab() {
               color="#cbd5e1"
               style={{ marginBottom: "10px" }}
             />
-            <p>You have no new notifications.</p>
+            <p>{t.noNotifs}</p>
           </div>
         ) : (
           notifications.map((notif) => (

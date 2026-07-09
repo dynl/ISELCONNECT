@@ -2,8 +2,12 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import LinemanReportDetail from "./LinemanReportDetail";
 import { CheckCircle, ChevronLeft } from "lucide-react";
+import { translations } from "../components/translations";
 
 function LinemanReportTab() {
+  const currentLang = localStorage.getItem("appLanguage") || "English";
+  const t = translations[currentLang];
+
   const [linemanName, setLinemanName] = useState("");
   const [assignedReports, setAssignedReports] = useState([]);
   const [allReports, setAllReports] = useState([]);
@@ -11,7 +15,6 @@ function LinemanReportTab() {
   const [loading, setLoading] = useState(true);
 
   const [selectedReport, setSelectedReport] = useState(null);
-
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [showResolvedScreen, setShowResolvedScreen] = useState(false);
 
@@ -28,31 +31,26 @@ function LinemanReportTab() {
       } = await supabase.auth.getUser();
       if (userError || !user) throw userError;
 
-      // 1. Fetch user data INCLUDING their branch_id
       const { data: userData } = await supabase
         .from("users")
         .select("first_name, branch_id")
         .eq("id", user.id)
         .maybeSingle();
-
       if (userData) setLinemanName(userData.first_name);
 
       const linemanBranchId = userData?.branch_id;
-
-      // 2. Fetch Assignments
       const { data: assignmentsData, error: assignError } = await supabase
         .from("assignments")
         .select(
           `reports ( id, description, landmark, latitude, longitude, photo_url, purok_sitio, barangays ( name ), municipalities ( name ), report_types ( name ), report_statuses ( id, name ) )`,
         )
         .eq("lineman_id", user.id);
-
       if (assignmentsData && !assignError) {
-        const reports = assignmentsData.map((a) => a.reports).filter(Boolean);
-        setAssignedReports(reports);
+        setAssignedReports(
+          assignmentsData.map((a) => a.reports).filter(Boolean),
+        );
       }
 
-      // 3. Fetch General Reports (FILTERED BY LINEMAN'S BRANCH)
       let generalReportsQuery = supabase
         .from("reports")
         .select(
@@ -60,26 +58,21 @@ function LinemanReportTab() {
         )
         .order("created_at", { ascending: false })
         .limit(5);
-
       if (linemanBranchId) {
         generalReportsQuery = generalReportsQuery.eq(
           "branch_id",
           linemanBranchId,
         );
       }
-
       const { data: generalReports } = await generalReportsQuery;
       if (generalReports) setAllReports(generalReports);
 
-      // 4. Fetch Total Reports Count (FILTERED BY LINEMAN'S BRANCH)
       let countQuery = supabase
         .from("reports")
         .select("*", { count: "exact", head: true });
-
       if (linemanBranchId) {
         countQuery = countQuery.eq("branch_id", linemanBranchId);
       }
-
       const { count: systemTotalCount } = await countQuery;
       if (systemTotalCount !== null) setTotalSystemReports(systemTotalCount);
     } catch (error) {
@@ -99,27 +92,20 @@ function LinemanReportTab() {
       .filter(Boolean)
       .join(", ");
   };
-
   const pendingReportsCount = assignedReports.filter(
     (r) => r.report_statuses?.name?.toUpperCase() === "PENDING",
   ).length;
-
   const resolvedReports = assignedReports.filter(
     (r) => r.report_statuses?.name?.toUpperCase() === "RESOLVED",
   );
-
   const activeAssignedReports = assignedReports.filter(
     (r) => r.report_statuses?.name?.toUpperCase() !== "RESOLVED",
   );
-
   const filteredActiveReports = activeAssignedReports.filter((r) => {
     if (filterStatus === "ALL") return true;
     return r.report_statuses?.name?.toUpperCase() === filterStatus;
   });
 
-  // ==========================================
-  // DETAIL SCREEN
-  // ==========================================
   if (selectedReport) {
     return (
       <LinemanReportDetail
@@ -133,9 +119,6 @@ function LinemanReportTab() {
     );
   }
 
-  // ==========================================
-  // FULL-SCREEN RESOLVED REPORTS VIEW
-  // ==========================================
   if (showResolvedScreen) {
     return (
       <div
@@ -186,10 +169,9 @@ function LinemanReportTab() {
               fontSize: "1.4rem",
             }}
           >
-            RESOLVED REPORTS
+            {t.resolvedReportsTitle}
           </h2>
         </div>
-
         <div
           style={{
             flex: 1,
@@ -201,7 +183,7 @@ function LinemanReportTab() {
           }}
         >
           {resolvedReports.length === 0 ? (
-            <p className="l-rt-loading">No resolved reports found.</p>
+            <p className="l-rt-loading">{t.noResolvedReports}</p>
           ) : (
             resolvedReports.map((report) => (
               <div
@@ -240,7 +222,7 @@ function LinemanReportTab() {
                     flexShrink: 0,
                   }}
                 >
-                  RESOLVED
+                  {t.resolved}
                 </div>
               </div>
             ))
@@ -250,9 +232,6 @@ function LinemanReportTab() {
     );
   }
 
-  // ==========================================
-  // MAIN DASHBOARD VIEW
-  // ==========================================
   return (
     <div
       className="tab-content lineman-dashboard-layout l-rt-tab"
@@ -266,13 +245,12 @@ function LinemanReportTab() {
     >
       <div className="l-rt-sticky-header" style={{ marginBottom: "20px" }}>
         <p className="l-rt-greeting" style={{ margin: 0 }}>
-          Hello
+          {t.hello}
         </p>
         <h2 className="l-rt-name" style={{ margin: 0 }}>
           {linemanName || "Lineman"}
         </h2>
       </div>
-
       <div
         style={{
           display: "flex",
@@ -292,9 +270,9 @@ function LinemanReportTab() {
           }}
         >
           <p className="l-rt-stat-title-blue">
-            TOTAL
+            {t.totalReports.split(" ")[0]}
             <br />
-            REPORTS
+            {t.totalReports.split(" ")[1]}
           </p>
           <h3 className="l-rt-stat-num-blue">{totalSystemReports}</h3>
         </div>
@@ -308,9 +286,9 @@ function LinemanReportTab() {
           }}
         >
           <p className="l-rt-stat-title-yellow">
-            PENDING ASSIGNED
+            {t.pendingAssignedReport.split(" ")[0]}
             <br />
-            REPORT
+            {t.assigned} {t.reports}
           </p>
           <h3 className="l-rt-stat-num-yellow">{pendingReportsCount}</h3>
         </div>
@@ -337,55 +315,61 @@ function LinemanReportTab() {
           boxSizing: "border-box",
         }}
       >
-        <CheckCircle size={20} />
-        VIEW RESOLVED REPORTS ({resolvedReports.length})
+        <CheckCircle size={20} /> {t.viewResolvedReports} (
+        {resolvedReports.length})
       </button>
 
       <h2 className="l-rt-section-title" style={{ marginBottom: 0 }}>
-        <span className="text-yellow">ASSIGNED</span>{" "}
-        <span className="text-navy">REPORTS</span>
+        <span className="text-yellow">{t.assigned}</span>{" "}
+        <span className="text-navy">{t.reports}</span>
       </h2>
 
-      {/* =====================================================================
-          THE FIX: REMOVED OVERFLOW, ENABLED WRAPPING
-          ===================================================================== */}
       <div
         style={{
           display: "flex",
-          flexWrap: "wrap", // <--- This allows them to flow naturally
+          flexWrap: "wrap",
           gap: "10px",
-          padding: "5px 0", // <--- Removed heavy padding
+          padding: "5px 0",
           marginTop: "10px",
           marginBottom: "15px",
           position: "relative",
           zIndex: 20,
         }}
       >
-        {["ALL", "PENDING", "IN PROGRESS"].map((status) => (
-          <button
-            key={status}
-            onClick={() => setFilterStatus(status)}
-            style={{
-              padding: "10px 18px",
-              borderRadius: "50px",
-              border: "none",
-              fontWeight: "900",
-              fontSize: "0.75rem",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              backgroundColor: filterStatus === status ? "#1b0b8c" : "#e2e8f0",
-              color: filterStatus === status ? "#ffffff" : "#475569",
-              transition: "all 0.2s",
-              boxShadow:
-                filterStatus === status
-                  ? "0 4px 10px rgba(27,11,140,0.2)"
-                  : "none",
-              flexShrink: 0,
-            }}
-          >
-            {status}
-          </button>
-        ))}
+        {["ALL", "PENDING", "IN PROGRESS"].map((status) => {
+          let displayName =
+            status === "ALL"
+              ? t.all
+              : status === "PENDING"
+                ? t.pending
+                : t.inProgress;
+          return (
+            <button
+              key={status}
+              onClick={() => setFilterStatus(status)}
+              style={{
+                padding: "10px 18px",
+                borderRadius: "50px",
+                border: "none",
+                fontWeight: "900",
+                fontSize: "0.75rem",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                backgroundColor:
+                  filterStatus === status ? "#1b0b8c" : "#e2e8f0",
+                color: filterStatus === status ? "#ffffff" : "#475569",
+                transition: "all 0.2s",
+                boxShadow:
+                  filterStatus === status
+                    ? "0 4px 10px rgba(27,11,140,0.2)"
+                    : "none",
+                flexShrink: 0,
+              }}
+            >
+              {displayName}
+            </button>
+          );
+        })}
       </div>
 
       <div
@@ -403,22 +387,27 @@ function LinemanReportTab() {
         }}
       >
         {loading ? (
-          <p className="l-rt-loading">Loading assignments...</p>
+          <p className="l-rt-loading">{t.loadingAssignments}</p>
         ) : filteredActiveReports.length === 0 ? (
           <p
             className="l-rt-loading"
             style={{ color: "#64748b", background: "transparent" }}
           >
-            No active reports match this filter.
+            {t.noActiveReports}
           </p>
         ) : (
           filteredActiveReports.map((report) => {
             const statusName =
               report.report_statuses?.name?.toUpperCase() || "UNKNOWN";
-            let badgeBg = "#f1f5f9";
-            let badgeColor = "#475569";
-            let badgeBorder = "#cbd5e1";
-
+            let displayStatusName =
+              statusName === "PENDING"
+                ? t.pending
+                : statusName === "IN PROGRESS"
+                  ? t.inProgress
+                  : statusName;
+            let badgeBg = "#f1f5f9",
+              badgeColor = "#475569",
+              badgeBorder = "#cbd5e1";
             if (statusName === "PENDING") {
               badgeBg = "#fffbeb";
               badgeColor = "#b45309";
@@ -452,7 +441,6 @@ function LinemanReportTab() {
                     {formatAddress(report)}
                   </p>
                 </div>
-
                 <div
                   style={{
                     backgroundColor: badgeBg,
@@ -467,7 +455,7 @@ function LinemanReportTab() {
                     flexShrink: 0,
                   }}
                 >
-                  {statusName}
+                  {displayStatusName}
                 </div>
               </div>
             );
@@ -479,9 +467,8 @@ function LinemanReportTab() {
         className="l-rt-section-title text-navy"
         style={{ marginTop: "30px" }}
       >
-        GENERAL REPORTS
+        {t.generalReports}
       </h2>
-
       <div
         style={{
           display: "flex",
@@ -494,7 +481,7 @@ function LinemanReportTab() {
       >
         {allReports.length === 0 && !loading ? (
           <p className="l-rt-loading" style={{ color: "#64748b" }}>
-            No general reports in your branch.
+            {t.noGeneralReports}
           </p>
         ) : (
           allReports.map((report) => (

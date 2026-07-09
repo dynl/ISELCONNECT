@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
-import { Settings, User, Edit, Save, X } from "lucide-react"; // Switched to Edit to match Resident
+import { Settings, User, Edit, Save, X } from "lucide-react";
 import LinemanSettingsTab from "./LinemanSettingsTab";
-import logo from "../assets/ISELCONNECT.png"; // Imported the logo for the background
+import logo from "../assets/ISELCONNECT.png";
 import { logSystemAction } from "../utils/logger";
+import { translations } from "../components/translations";
 import "../Lineman.css";
+import LoadingScreen from "../components/LoadingScreen";
 
 function LinemanProfileTab({ onLogout }) {
+  const currentLang = localStorage.getItem("appLanguage") || "English";
+  const t = translations[currentLang];
+
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState("profile");
@@ -37,21 +42,14 @@ function LinemanProfileTab({ onLogout }) {
         const { data: dbUser } = await supabase
           .from("users")
           .select(
-            `
-            *,
-            employees ( employee_id_no ),
-            barangays ( id, name ),
-            municipalities ( id, name )
-          `,
+            `*, employees ( employee_id_no ), barangays ( id, name ), municipalities ( id, name )`,
           )
           .eq("id", user.id)
           .maybeSingle();
-
         const empId =
           dbUser?.employees?.[0]?.employee_id_no ||
           dbUser?.employees?.employee_id_no ||
           "N/A";
-
         const hasAddress =
           dbUser?.municipalities?.name || dbUser?.barangays?.name;
         const addressParts = [
@@ -60,12 +58,11 @@ function LinemanProfileTab({ onLogout }) {
           dbUser?.municipalities?.name,
           hasAddress ? "Isabela" : null,
         ].filter(Boolean);
-
         const fullAddress = hasAddress ? addressParts.join(", ") : "None";
 
         setUserProfile({
           id: user.id,
-          email: user.email || dbUser?.email || "N/A", 
+          email: user.email || dbUser?.email || "N/A",
           firstName: dbUser?.first_name ?? "",
           lastName: dbUser?.last_name ?? "",
           middleName: dbUser?.middle_name ?? "",
@@ -112,7 +109,6 @@ function LinemanProfileTab({ onLogout }) {
         .order("name");
       if (data) setBarangays(data);
     };
-
     if (isEditing) fetchBarangays();
   }, [editData.municipality_id, isEditing]);
 
@@ -147,7 +143,6 @@ function LinemanProfileTab({ onLogout }) {
       alert("First Name, Last Name, Municipality, and Barangay are required.");
       return;
     }
-
     setSaving(true);
     try {
       const { error } = await supabase
@@ -161,26 +156,22 @@ function LinemanProfileTab({ onLogout }) {
           purok_sitio: editData.purok_sitio.trim() || null,
         })
         .eq("id", userProfile.id);
-
       if (error) throw error;
-
       await logSystemAction(
         "UPDATE_PROFILE",
         "Lineman updated their profile information.",
       );
-
       setIsEditing(false);
       setShowSuccessModal(true);
-      await fetchUserData(); 
+      await fetchUserData();
     } catch (err) {
-      console.error("Failed to update profile:", err);
       alert("Error updating profile. Please try again.");
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <div className="home-loading-text" style={{ padding: "40px" }}>Loading profile...</div>;
+  if (loading) return <LoadingScreen message={t.loadingProfile} />;
 
   if (activeView === "settings") {
     return (
@@ -197,25 +188,29 @@ function LinemanProfileTab({ onLogout }) {
       .trim() || "Lineman";
 
   return (
-    <div 
+    <div
       className="pt-container page-transition"
-      style={{ 
-        height: "100vh", 
-        overflowY: "auto", 
-        paddingBottom: "150px", 
+      style={{
+        height: "100vh",
+        overflowY: "auto",
+        paddingBottom: "150px",
         boxSizing: "border-box",
-        position: "relative"
+        position: "relative",
       }}
     >
       {showSuccessModal && (
         <div className="modal-overlay">
           <div className="modal-box">
-            <h3 className="modal-title">SUCCESS</h3>
-            <p className="modal-text">
-              Your profile has been
-              <br />
-              successfully updated!
-            </p>
+            <h3 className="modal-title">{t.confirmChangesTitle}</h3>
+            <p
+              className="modal-text"
+              dangerouslySetInnerHTML={{
+                __html: t.confirmChangesText.replace(
+                  "successfully",
+                  "successfully<br/>",
+                ),
+              }}
+            />
             <div className="modal-buttons">
               <button
                 className="modal-btn confirm-btn"
@@ -229,7 +224,6 @@ function LinemanProfileTab({ onLogout }) {
         </div>
       )}
 
-      {/* MATCHED BACKGROUND WITH RESIDENT */}
       <div
         className="profile-header-bg"
         style={{
@@ -245,51 +239,61 @@ function LinemanProfileTab({ onLogout }) {
 
       <div className="pt-info-wrapper">
         <h2 className="pt-name-heading">
-          {isEditing ? "EDIT PROFILE" : fullName}
+          {isEditing ? t.editProfileTitle : fullName}
         </h2>
 
         {!isEditing ? (
           <>
             <div className="pt-data-grid page-transition">
               <div className="pt-data-row">
-                <span className="pt-data-label">Employee ID:</span>
+                <span className="pt-data-label">{t.employeeId}</span>
                 <span className="pt-data-value">{userProfile?.employeeId}</span>
               </div>
-              
               <div className="pt-data-row">
-                <span className="pt-data-label">Email:</span>
-                <span className="pt-data-value" style={{ wordBreak: "break-all" }}>
+                <span className="pt-data-label">{t.emailLabel}</span>
+                <span
+                  className="pt-data-value"
+                  style={{ wordBreak: "break-all" }}
+                >
                   {userProfile?.email}
                 </span>
               </div>
-
               <div className="pt-data-row">
-                <span className="pt-data-label">Address:</span>
-                <span className="pt-data-value" style={{ textTransform: userProfile?.address === "None" ? "none" : "inherit" }}>
+                <span className="pt-data-label">{t.addressLabel}</span>
+                <span
+                  className="pt-data-value"
+                  style={{
+                    textTransform:
+                      userProfile?.address === "None" ? "none" : "inherit",
+                  }}
+                >
                   {userProfile?.address}
                 </span>
               </div>
-              
               <div className="pt-data-row">
-                <span className="pt-data-label">Contact number:</span>
-                <span className="pt-data-value">{userProfile?.mobileNumber}</span>
+                <span className="pt-data-label">{t.contactLabel}</span>
+                <span className="pt-data-value">
+                  {userProfile?.mobileNumber}
+                </span>
               </div>
             </div>
 
-            {/* MATCHED BUTTON CLASSES WITH RESIDENT */}
             <div className="profile-btn-row page-transition">
               <button onClick={handleEditClick} className="profile-btn-edit">
-                <Edit size={20} /> EDIT PROFILE
+                <Edit size={20} /> {t.editProfileTitle}
               </button>
-              <button onClick={() => setActiveView("settings")} className="profile-btn-settings">
-                <Settings size={20} /> SETTINGS
+              <button
+                onClick={() => setActiveView("settings")}
+                className="profile-btn-settings"
+              >
+                <Settings size={20} /> {t.settingsTitle}
               </button>
             </div>
           </>
         ) : (
           <div className="pt-edit-form-wrapper page-transition">
             <div className="edit-input-group">
-              <label>First Name</label>
+              <label>{t.firstName}</label>
               <input
                 type="text"
                 name="first_name"
@@ -299,7 +303,7 @@ function LinemanProfileTab({ onLogout }) {
               />
             </div>
             <div className="edit-input-group">
-              <label>Middle Name (Optional)</label>
+              <label>{t.middleName}</label>
               <input
                 type="text"
                 name="middle_name"
@@ -309,7 +313,7 @@ function LinemanProfileTab({ onLogout }) {
               />
             </div>
             <div className="edit-input-group">
-              <label>Last Name</label>
+              <label>{t.lastName}</label>
               <input
                 type="text"
                 name="last_name"
@@ -318,9 +322,8 @@ function LinemanProfileTab({ onLogout }) {
                 className="edit-input"
               />
             </div>
-
             <div className="edit-input-group">
-              <label>Municipality</label>
+              <label>{t.municipality}</label>
               <select
                 name="municipality_id"
                 value={editData.municipality_id}
@@ -328,7 +331,7 @@ function LinemanProfileTab({ onLogout }) {
                 className="edit-input custom-select"
               >
                 <option value="" disabled>
-                  Select Municipality
+                  {t.selectMunicipality}
                 </option>
                 {municipalities.map((m) => (
                   <option key={m.id} value={m.id}>
@@ -337,9 +340,8 @@ function LinemanProfileTab({ onLogout }) {
                 ))}
               </select>
             </div>
-
             <div className="edit-input-group">
-              <label>Barangay</label>
+              <label>{t.barangay}</label>
               <select
                 name="barangay_id"
                 value={editData.barangay_id}
@@ -349,8 +351,8 @@ function LinemanProfileTab({ onLogout }) {
               >
                 <option value="" disabled>
                   {editData.municipality_id
-                    ? "Select Barangay"
-                    : "Select Municipality First"}
+                    ? t.selectBarangay
+                    : t.selectMunicipalityFirst}
                 </option>
                 {barangays.map((b) => (
                   <option key={b.id} value={b.id}>
@@ -359,9 +361,8 @@ function LinemanProfileTab({ onLogout }) {
                 ))}
               </select>
             </div>
-
             <div className="edit-input-group">
-              <label>Purok / Sitio (Optional)</label>
+              <label>{t.purokSitio}</label>
               <input
                 type="text"
                 name="purok_sitio"
@@ -370,22 +371,20 @@ function LinemanProfileTab({ onLogout }) {
                 className="edit-input"
               />
             </div>
-
-            {/* MATCHED ACTION BUTTON CLASSES */}
             <div className="edit-actions">
               <button
                 onClick={() => setIsEditing(false)}
                 className="edit-cancel-btn"
                 disabled={saving}
               >
-                <X size={18} /> CANCEL
+                <X size={18} /> {t.cancelBtn}
               </button>
               <button
                 onClick={handleSaveProfile}
                 className="edit-save-btn"
                 disabled={saving}
               >
-                <Save size={18} /> {saving ? "SAVING..." : "SAVE CHANGES"}
+                <Save size={18} /> {saving ? t.savingBtn : t.saveChangesBtn}
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
-import { translations } from "./translations";
+import { translations } from "../components/translations";
+import LoadingScreen from "../components/LoadingScreen"; // Added custom loading
 import "../Resident.css";
 
 function AdvisoryTab() {
@@ -17,8 +18,6 @@ function AdvisoryTab() {
   const fetchAdvisories = async () => {
     try {
       setLoading(true);
-
-      // Get the exact current date and time in a database-friendly format (ISO string)
       const currentDateTime = new Date().toISOString();
 
       const { data: advisoryData, error: advisoryError } = await supabase
@@ -26,7 +25,6 @@ function AdvisoryTab() {
         .select(
           "id, affected_areas, schedule_start, schedule_end, municipalities(name)",
         )
-        // THIS IS THE MAGIC LINE: Only fetch where schedule_end is in the future!
         .gte("schedule_end", currentDateTime)
         .order("schedule_start", { ascending: true });
 
@@ -51,7 +49,6 @@ function AdvisoryTab() {
       .replace(" ", "");
   };
 
-  // Group advisories by both Date AND Time to match the mockup
   const groupedAdvisories = advisories.reduce((acc, current) => {
     const dateStr = new Date(current.schedule_start)
       .toLocaleDateString("en-US", {
@@ -60,10 +57,7 @@ function AdvisoryTab() {
         year: "numeric",
       })
       .toUpperCase();
-
     const timeStr = `${formatTime(current.schedule_start)} - ${formatTime(current.schedule_end)}`;
-
-    // Create a combined key (e.g., "JUNE 12, 2026|10:00am - 10:00pm")
     const groupKey = `${dateStr}|${timeStr}`;
 
     if (!acc[groupKey]) acc[groupKey] = [];
@@ -77,7 +71,6 @@ function AdvisoryTab() {
         className="home-section"
         style={{ paddingTop: "20px", paddingBottom: "100px" }}
       >
-        {/* TITLE */}
         <h2
           className="section-heading"
           style={{
@@ -87,35 +80,27 @@ function AdvisoryTab() {
           }}
         >
           <span className="text-yellow" style={{ fontWeight: "900" }}>
-            {t.powerYellow || "POWER"}
+            {t.powerYellow}
           </span>{" "}
           <span className="text-navy" style={{ fontWeight: "900" }}>
-            {t.advisoryNavy || "ADVISORY"}
+            {t.advisoryNavy}
           </span>
         </h2>
 
         {loading ? (
-          <p
-            className="home-loading-text"
-            style={{ textAlign: "center", color: "#1b0b8c" }}
-          >
-            Loading advisories...
-          </p>
+          <LoadingScreen message={t.loadingAdvisories} />
         ) : Object.keys(groupedAdvisories).length === 0 ? (
           <p
             className="home-empty-text"
             style={{ textAlign: "center", color: "#64748b" }}
           >
-            {t.noAdvisories || "No power advisories at the moment."}
+            {t.noAdvisories}
           </p>
         ) : (
           Object.keys(groupedAdvisories).map((groupKey) => {
-            // Split the key back into Date and Time
             const [dateKey, timeKey] = groupKey.split("|");
-
             return (
               <div key={groupKey} style={{ marginBottom: "30px" }}>
-                {/* YELLOW DATE & TIME BOX */}
                 <div
                   style={{
                     backgroundColor: "#fde047",
@@ -147,15 +132,10 @@ function AdvisoryTab() {
                     {timeKey}
                   </p>
                 </div>
-
-                {/* LIST OF MUNICIPALITY CARDS UNDER THIS DATE/TIME */}
                 {groupedAdvisories[groupKey].map((adv) => {
-                  // Split the comma-separated barangays into an array
                   const barangays = adv.affected_areas
                     ? adv.affected_areas.split(",").map((b) => b.trim())
                     : [];
-
-                  // Fallback just in case the municipality isn't linked yet
                   const municipalityName =
                     adv.municipalities?.name || "MUNICIPALITY";
 
@@ -171,7 +151,6 @@ function AdvisoryTab() {
                         boxShadow: "0 6px 15px rgba(27, 11, 140, 0.15)",
                       }}
                     >
-                      {/* MUNICIPALITY HEADER */}
                       <h4
                         style={{
                           margin: "0 0 15px 0",
@@ -184,8 +163,6 @@ function AdvisoryTab() {
                       >
                         {municipalityName}
                       </h4>
-
-                      {/* BARANGAY 2-COLUMN GRID */}
                       <div
                         style={{
                           display: "grid",

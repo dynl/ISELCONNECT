@@ -7,11 +7,15 @@ import {
   GraduationCap,
   ChevronLeft,
 } from "lucide-react";
+import { translations } from "../components/translations"; // Added Dictionary
 
 function AboutUs({ onBack }) {
+  const currentLang = localStorage.getItem("appLanguage") || "English";
+  const t = translations[currentLang];
+
   const aboutContent = (
     <div
-      className="page-transition" /* PAGE TRANSITION ADDED HERE */
+      className="page-transition"
       style={{
         position: "fixed",
         top: 0,
@@ -19,14 +23,13 @@ function AboutUs({ onBack }) {
         width: "100vw",
         height: "100vh",
         backgroundColor: "#f8fafc",
-        zIndex: 999999, 
+        zIndex: 999999,
         overflowY: "auto",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
       }}
     >
-      {/* Main Content Wrapper */}
       <div
         style={{
           width: "100%",
@@ -36,7 +39,6 @@ function AboutUs({ onBack }) {
           boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
         }}
       >
-        {/* Header Section */}
         <div
           style={{
             backgroundColor: "#1b0b8c",
@@ -46,7 +48,6 @@ function AboutUs({ onBack }) {
             color: "#ffffff",
           }}
         >
-          {/* FLOATING NATIVE-STYLE BACK BUTTON */}
           <button
             onClick={onBack}
             style={{
@@ -73,7 +74,7 @@ function AboutUs({ onBack }) {
                 letterSpacing: "0.5px",
               }}
             >
-              BACK
+              {t.backBtn}
             </span>
           </button>
 
@@ -85,14 +86,10 @@ function AboutUs({ onBack }) {
               letterSpacing: "1px",
             }}
           >
-            ABOUT <span style={{ color: "#facc15" }}>ISELCONNECT</span>
+            {t.aboutTitle} <span style={{ color: "#facc15" }}>ISELCONNECT</span>
           </h1>
-          <p style={{ margin: 0, fontSize: "1rem", opacity: 0.9 }}>
-            Bridging the gap between the community and utility services.
-          </p>
         </div>
 
-        {/* Content Section */}
         <div style={{ padding: "40px 30px", paddingBottom: "100px" }}>
           <h2
             style={{
@@ -104,7 +101,7 @@ function AboutUs({ onBack }) {
               paddingBottom: "10px",
             }}
           >
-            Our Mission
+            {t.ourMission}
           </h2>
           <p
             style={{
@@ -113,12 +110,7 @@ function AboutUs({ onBack }) {
               marginBottom: "30px",
             }}
           >
-            ISELCONNECT is a hybrid web and mobile system designed to streamline
-            communication between ISELCO-1 and its consumers. Our goal is to
-            empower residents with real-time power outage advisories while
-            providing a seamless, crowdsourced platform to report maintenance
-            issues like leaning poles, sparking transformers, and line
-            clearings.
+            {t.missionText}
           </p>
 
           <h2
@@ -131,7 +123,7 @@ function AboutUs({ onBack }) {
               paddingBottom: "10px",
             }}
           >
-            Key Features
+            {t.keyFeatures}
           </h2>
 
           <div
@@ -161,13 +153,12 @@ function AboutUs({ onBack }) {
                   margin: "0 0 8px 0",
                 }}
               >
-                Real-Time Advisories
+                {t.rtAdvisories}
               </h3>
               <p style={{ fontSize: "0.85rem", color: "#64748b", margin: 0 }}>
-                Advanced notifications for scheduled power interruptions.
+                {t.rtDesc}
               </p>
             </div>
-
             <div
               style={{
                 display: "flex",
@@ -191,13 +182,12 @@ function AboutUs({ onBack }) {
                   margin: "0 0 8px 0",
                 }}
               >
-                Crowdsourced Reports
+                {t.crReports}
               </h3>
               <p style={{ fontSize: "0.85rem", color: "#64748b", margin: 0 }}>
-                Allowing residents to report field issues directly to linemen.
+                {t.crDesc}
               </p>
             </div>
-
             <div
               style={{
                 display: "flex",
@@ -221,10 +211,10 @@ function AboutUs({ onBack }) {
                   margin: "0 0 8px 0",
                 }}
               >
-                Faster Resolutions
+                {t.fastRes}
               </h3>
               <p style={{ fontSize: "0.85rem", color: "#64748b", margin: 0 }}>
-                Directing reports to the right branch for rapid response.
+                {t.fastDesc}
               </p>
             </div>
           </div>
@@ -239,7 +229,7 @@ function AboutUs({ onBack }) {
               paddingBottom: "10px",
             }}
           >
-            The Developer
+            {t.theDeveloper}
           </h2>
           <div
             style={{
@@ -259,16 +249,7 @@ function AboutUs({ onBack }) {
             />
             <div>
               <p style={{ color: "#334155", lineHeight: "1.6", margin: 0 }}>
-                This platform was developed by{" "}
-                <strong>
-                  Allysa B. Reyes, Mark Justin F. Balisacan, and John Lloyd A.
-                  Binuya
-                </strong>
-                , a student pursuing a Bachelor of Science in Information
-                Technology with a major in Web and Mobile Application
-                Development at Isabela State University. ISELCONNECT serves as a
-                capstone project dedicated to improving public utility services
-                and community safety through modern technology.
+                {t.devText}
               </p>
             </div>
           </div>
