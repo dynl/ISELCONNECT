@@ -37,14 +37,19 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
   const [activeStatus, setActiveStatus] = useState(
     report.report_statuses?.name?.toUpperCase() || "PENDING",
   );
+
   const [showStatusAlert, setShowStatusAlert] = useState(false);
   const [pendingStatusUpdate, setPendingStatusUpdate] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showEvidenceAlert, setShowEvidenceAlert] = useState(false);
 
+  // --- NEW RESOLUTION FLOW STATES ---
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [showMap, setShowMap] = useState(false);
+  const [isRemarksOpen, setIsRemarksOpen] = useState(false);
   const [evidencePhoto, setEvidencePhoto] = useState(null);
+  const [resolutionRemarks, setResolutionRemarks] = useState("");
+  // ----------------------------------
+
+  const [showMap, setShowMap] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [companions, setCompanions] = useState([]);
@@ -135,14 +140,32 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
 
   const handleStatusClick = (statusName) => {
     if (statusName === activeStatus || isResolved) return;
-    if (statusName === "RESOLVED" && !evidencePhoto) {
+
+    // NEW FLOW: If RESOLVED is clicked, bypass the alert and instantly open the camera
+    if (statusName === "RESOLVED") {
       setPendingStatusUpdate("RESOLVED");
-      setShowEvidenceAlert(true);
+      setIsCameraOpen(true);
       return;
     }
+
     setPendingStatusUpdate(statusName);
     setShowStatusAlert(true);
   };
+
+  const captureEvidence = useCallback(() => {
+    if (webcamRef.current) {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (imageSrc) {
+        setEvidencePhoto(imageSrc);
+        setIsCameraOpen(false);
+
+        // After photo is taken, smoothly transition to the Remarks screen
+        if (pendingStatusUpdate === "RESOLVED") {
+          setIsRemarksOpen(true);
+        }
+      }
+    }
+  }, [webcamRef, pendingStatusUpdate]);
 
   const confirmStatusUpdate = async () => {
     setIsSubmitting(true);
@@ -151,19 +174,32 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
       if (pendingStatusUpdate === "PENDING") newStatusId = 1;
       if (pendingStatusUpdate === "IN PROGRESS") newStatusId = 2;
       if (pendingStatusUpdate === "RESOLVED") newStatusId = 3;
+
       const updatePayload = { status_id: newStatusId };
 
-      if (pendingStatusUpdate === "RESOLVED" && evidencePhoto) {
+      // --- APPEND PHOTO AND REMARKS IF RESOLVED ---
+      if (pendingStatusUpdate === "RESOLVED") {
+        if (!evidencePhoto) throw new Error("Evidence photo is missing.");
+        if (!resolutionRemarks.trim())
+          throw new Error("Remarks are required to resolve.");
+
         const fileName = `resolved-${report.id}-${Date.now()}.jpg`;
         const imageBlob = base64ToBlob(evidencePhoto);
+
         const { error: uploadError } = await supabase.storage
           .from("report_photos")
           .upload(fileName, imageBlob, { contentType: "image/jpeg" });
+
         if (uploadError) throw new Error("Failed to upload evidence photo.");
+
         const { data: publicUrlData } = supabase.storage
           .from("report_photos")
           .getPublicUrl(fileName);
+
         updatePayload.resolved_photo_url = publicUrlData.publicUrl;
+
+        // Note: Ensure you have a 'remarks' column in your 'reports' table for this!
+        updatePayload.remarks = resolutionRemarks.trim();
       }
 
       const { data, error } = await supabase
@@ -171,6 +207,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
         .update(updatePayload)
         .eq("id", report.id)
         .select();
+
       if (error) throw error;
       if (!data || data.length === 0)
         throw new Error("Update blocked by Supabase!");
@@ -183,6 +220,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
           pendingStatusUpdate === "IN PROGRESS"
             ? { arrival_at: new Date().toISOString() }
             : { completion_at: new Date().toISOString() };
+
         await supabase
           .from("assignments")
           .update(assignmentPayload)
@@ -193,6 +231,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
         "UPDATE_REPORT_STATUS",
         `Lineman updated report #${report.id} status to ${pendingStatusUpdate}.`,
       );
+
       setActiveStatus(pendingStatusUpdate);
       setShowSuccessModal(true);
     } catch (err) {
@@ -200,22 +239,14 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
     } finally {
       setIsSubmitting(false);
       setShowStatusAlert(false);
+      setIsRemarksOpen(false);
       setPendingStatusUpdate(null);
     }
   };
 
-  const captureEvidence = useCallback(() => {
-    if (webcamRef.current) {
-      const imageSrc = webcamRef.current.getScreenshot();
-      if (imageSrc) {
-        setEvidencePhoto(imageSrc);
-        setIsCameraOpen(false);
-        if (pendingStatusUpdate === "RESOLVED") {
-          setShowStatusAlert(true);
-        }
-      }
-    }
-  }, [webcamRef, pendingStatusUpdate]);
+  // ==========================================
+  // FULL SCREEN OVERLAYS
+  // ==========================================
 
   if (showMap) {
     return (
@@ -319,8 +350,14 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
           >
             <ChevronLeft size={32} color="#fff" />
           </button>
-          <span style={{ color: "#fff", fontWeight: "bold" }}>
-            {t.evidenceCamera}
+          <span
+            style={{
+              color: "#fff",
+              fontWeight: "bold",
+              textTransform: "uppercase",
+            }}
+          >
+            Proof of Resolution
           </span>
           <div style={{ width: 32 }}></div>
         </div>
@@ -388,61 +425,151 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
     );
   }
 
+  if (isRemarksOpen) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          background: "#f8fafc",
+          zIndex: 99999,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "20px 15px",
+            background: "#1b0b8c",
+            flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={() => {
+              setIsRemarksOpen(false);
+              setIsCameraOpen(true);
+            }} // Goes back to camera to retake photo
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <ChevronLeft size={32} color="#fff" />
+          </button>
+          <span
+            style={{
+              color: "#fff",
+              fontWeight: "900",
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+            }}
+          >
+            Resolution Remarks
+          </span>
+          <div style={{ width: 32 }}></div>
+        </div>
+
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              height: "220px",
+              borderRadius: "15px",
+              overflow: "hidden",
+              marginBottom: "20px",
+              boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
+              border: "2px solid #cbd5e1",
+            }}
+          >
+            <img
+              src={evidencePhoto}
+              alt="Resolution Proof"
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          </div>
+
+          <label
+            style={{
+              color: "#1e293b",
+              fontWeight: "900",
+              marginBottom: "10px",
+              fontSize: "0.95rem",
+              textTransform: "uppercase",
+            }}
+          >
+            Action Taken / Remarks:
+          </label>
+          <textarea
+            value={resolutionRemarks}
+            onChange={(e) => setResolutionRemarks(e.target.value)}
+            placeholder="Describe exactly what was fixed..."
+            style={{
+              width: "100%",
+              height: "140px",
+              padding: "15px",
+              borderRadius: "15px",
+              border: "1px solid #cbd5e1",
+              fontSize: "1rem",
+              resize: "none",
+              marginBottom: "20px",
+              boxSizing: "border-box",
+              fontFamily: "inherit",
+            }}
+          />
+
+          <button
+            onClick={confirmStatusUpdate}
+            disabled={isSubmitting || !resolutionRemarks.trim()}
+            style={{
+              marginTop: "auto",
+              backgroundColor: "#1b0b8c",
+              color: "#fff",
+              padding: "18px",
+              borderRadius: "30px",
+              fontWeight: "900",
+              fontSize: "1rem",
+              border: "none",
+              cursor:
+                isSubmitting || !resolutionRemarks.trim()
+                  ? "not-allowed"
+                  : "pointer",
+              opacity: isSubmitting || !resolutionRemarks.trim() ? 0.6 : 1,
+              textTransform: "uppercase",
+              letterSpacing: "1px",
+              boxShadow: "0 6px 15px rgba(27, 11, 140, 0.2)",
+            }}
+          >
+            {isSubmitting ? "Saving Resolution..." : "Confirm & Resolve Report"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // MAIN COMPONENT RENDER
+  // ==========================================
+
   return (
     <div className="detail-layout page-transition">
-      {showEvidenceAlert && (
-        <div className="custom-alert-overlay">
-          <div className="custom-alert-box">
-            <div className="custom-alert-header alert-header-danger">
-              <h2>{t.evidenceRequired}</h2>
-            </div>
-            <div className="custom-alert-body">
-              <p>{t.evidenceText}</p>
-              <div
-                className="custom-alert-buttons"
-                style={{ display: "flex", gap: "10px", marginTop: "15px" }}
-              >
-                <button
-                  className="alert-btn no-btn"
-                  onClick={() => {
-                    setShowEvidenceAlert(false);
-                    setPendingStatusUpdate(null);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: "12px",
-                    borderRadius: "12px",
-                    border: "1px solid #cbd5e1",
-                    background: "#f1f5f9",
-                    color: "#475569",
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                  }}
-                >
-                  {t.cancelBtn}
-                </button>
-                <button
-                  className="alert-btn yes-btn bg-navy text-white"
-                  onClick={() => {
-                    setShowEvidenceAlert(false);
-                    setIsCameraOpen(true);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: "12px",
-                    borderRadius: "12px",
-                    fontWeight: "bold",
-                    cursor: "pointer",
-                  }}
-                >
-                  {t.openCamera}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {showStatusAlert && (
         <div className="custom-alert-overlay">
           <div className="custom-alert-box">
@@ -452,11 +579,9 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
             <div className="custom-alert-body">
               <p>
                 {t.confirmStatusUpdate}{" "}
-                {pendingStatusUpdate === "RESOLVED"
-                  ? t.resolved
-                  : pendingStatusUpdate === "IN PROGRESS"
-                    ? t.inProgress
-                    : t.pending}
+                {pendingStatusUpdate === "IN PROGRESS"
+                  ? t.inProgress
+                  : t.pending}
                 ?
               </p>
               <div className="custom-alert-buttons">
@@ -520,6 +645,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
           </button>
           <h2>{report.report_types?.name || t.reportDetailsTitle}</h2>
         </div>
+
         <div className="detail-photo-section">
           {report.photo_url ? (
             <img
@@ -531,6 +657,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
             <div className="no-photo">{t.noPhotoProvided}</div>
           )}
         </div>
+
         <div className="detail-info-section">
           <p>
             <strong>{t.descriptionLabel}</strong>{" "}
@@ -595,6 +722,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
               </p>
             </div>
           )}
+
           <button
             onClick={() => setShowMap(true)}
             style={{
@@ -621,6 +749,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
           >
             <MapPin size={22} /> {t.viewLocationMap}
           </button>
+
           <div className="coords-row" style={{ marginTop: "10px" }}>
             <span>
               <strong>LO:</strong> {report.longitude || "N/A"}
@@ -629,6 +758,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
               <strong>LA:</strong> {report.latitude || "N/A"}
             </span>
           </div>
+
           <div
             style={{
               background: "#ffffff",
@@ -707,44 +837,6 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
               </p>
             )}
           </div>
-          {evidencePhoto && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "15px",
-                background: "#f0fdf4",
-                border: "1px solid #bbf7d0",
-                padding: "10px",
-                borderRadius: "12px",
-                marginTop: "10px",
-              }}
-            >
-              <img
-                src={evidencePhoto}
-                alt="Evidence"
-                style={{
-                  width: "60px",
-                  height: "60px",
-                  objectFit: "cover",
-                  borderRadius: "8px",
-                  border: "2px solid #16a34a",
-                }}
-              />
-              <div
-                style={{
-                  color: "#15803d",
-                  fontWeight: "900",
-                  fontSize: "0.85rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
-                }}
-              >
-                <CheckCircle size={18} /> {t.evidenceReady}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

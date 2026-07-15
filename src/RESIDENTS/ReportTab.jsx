@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { createPortal } from "react-dom"; // 1. IMPORTED PORTAL
+import { createPortal } from "react-dom";
 import Webcam from "react-webcam";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Camera as CameraIcon, ChevronLeft, ChevronDown } from "lucide-react";
+import {
+  Camera as CameraIcon,
+  ChevronLeft,
+  ChevronDown,
+  AlertTriangle,
+} from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
 import { translations } from "../components/translations";
@@ -166,7 +171,6 @@ function ReportTab({ isActive }) {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
 
-  // 2. ADDED: This locks the screen scrolling whenever the modal is open!
   useEffect(() => {
     if (showSuccessModal) {
       document.body.style.overflow = "hidden";
@@ -209,6 +213,90 @@ function ReportTab({ isActive }) {
     };
     fetchBarangays();
   }, [formData.municipality_id]);
+
+  // =========================================================================
+  // 🚀 LOCATIONIQ + "BOTTOM-UP RESCUE" REVERSE GEOCODING
+  // =========================================================================
+  useEffect(() => {
+    const autoFillAddress = async () => {
+      if (!coordinates.lat || !coordinates.lon || municipalities.length === 0)
+        return;
+
+      try {
+        // ⚠️ KEEP YOUR LOCATIONIQ TOKEN HERE
+        const LOCATION_IQ_TOKEN = import.meta.env.VITE_LOCATIONIQ_TOKEN;
+
+        const res = await fetch(
+          `https://us1.locationiq.com/v1/reverse.php?key=${LOCATION_IQ_TOKEN}&lat=${coordinates.lat}&lon=${coordinates.lon}&format=json`,
+        );
+        const data = await res.json();
+
+        if (data && data.address) {
+          const addressValues = Object.values(data.address).map((v) =>
+            typeof v === "string" ? v.toLowerCase() : "",
+          );
+
+          let matchedMunId = formData.municipality_id;
+          let matchedBrgyId = formData.barangay_id;
+
+          // 1. Try Top-Down Match (Find Municipality first)
+          const munMatch = municipalities.find((m) =>
+            addressValues.some((val) => val.includes(m.name.toLowerCase())),
+          );
+          if (munMatch) matchedMunId = munMatch.id.toString();
+
+          // 2. Try to find Barangay
+          if (matchedMunId) {
+            const { data: bData } = await supabase
+              .from("barangays")
+              .select("id, name")
+              .eq("municipality_id", matchedMunId);
+            if (bData) {
+              const brgyMatch = bData.find((b) =>
+                addressValues.some((val) => val.includes(b.name.toLowerCase())),
+              );
+              if (brgyMatch) matchedBrgyId = brgyMatch.id.toString();
+            }
+          } else {
+            // 🚨 BOTTOM-UP RESCUE
+            const { data: allBrgys } = await supabase
+              .from("barangays")
+              .select("id, name, municipality_id");
+            if (allBrgys) {
+              const brgyMatch = allBrgys.find((b) =>
+                addressValues.some(
+                  (val) =>
+                    val === b.name.toLowerCase() ||
+                    val.includes(b.name.toLowerCase()),
+                ),
+              );
+              if (brgyMatch) {
+                matchedBrgyId = brgyMatch.id.toString();
+                matchedMunId = brgyMatch.municipality_id.toString();
+              }
+            }
+          }
+
+          // 3. Auto-Fill Purok / Sitio (Moved from Landmark)
+          const { road, amenity, neighbourhood, suburb } = data.address;
+          const suggestedPurok =
+            road || neighbourhood || suburb || amenity || "";
+
+          setFormData((prev) => ({
+            ...prev,
+            municipality_id: matchedMunId || prev.municipality_id,
+            barangay_id: matchedBrgyId || prev.barangay_id,
+            purok_sitio: prev.purok_sitio || suggestedPurok, // Redirected the auto-fill to this field
+          }));
+        }
+      } catch (error) {
+        console.error("LocationIQ auto-mapping failed:", error);
+      }
+    };
+
+    autoFillAddress();
+  }, [coordinates.lat, coordinates.lon, municipalities]);
+  // =========================================================================
 
   useEffect(() => {
     const navBar = document.querySelector(".bottom-nav-wrapper");
@@ -378,7 +466,6 @@ function ReportTab({ isActive }) {
 
   return (
     <div className="bg-navy-tab">
-      {/* 3. ADDED: createPortal wraps the modal to guarantee it is full screen */}
       {showSuccessModal &&
         createPortal(
           <div
@@ -436,6 +523,7 @@ function ReportTab({ isActive }) {
       {!isCameraOpen ? (
         <div className="report-form-container">
           <h1 className="report-title text-yellow">{t.reportTitle}</h1>
+
           <div
             className="photo-capture-box"
             onClick={() => setIsCameraOpen(true)}
@@ -462,13 +550,40 @@ function ReportTab({ isActive }) {
             />
           )}
 
-          <p
-            className="location-note text-center"
-            style={{ textAlign: "center", marginBottom: "15px" }}
+          <div
+            style={{
+              backgroundColor: "#fef3c7",
+              borderLeft: "5px solid #facc15",
+              padding: "12px 15px",
+              borderRadius: "8px",
+              marginBottom: "20px",
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "10px",
+              boxShadow: "0 4px 10px rgba(0,0,0,0.15)",
+            }}
           >
-            <strong className="text-yellow">{t.noteLabel}</strong>{" "}
-            {t.locationNote}
-          </p>
+            <AlertTriangle
+              size={24}
+              color="#b45309"
+              style={{ flexShrink: 0, marginTop: "2px" }}
+            />
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.85rem",
+                color: "#92400e",
+                lineHeight: "1.5",
+                textAlign: "left",
+              }}
+            >
+              <strong style={{ color: "#b45309", textTransform: "uppercase" }}>
+                {t.noteLabel || "Note:"}
+              </strong>{" "}
+              {t.locationNote ||
+                "Turn on the location of your device before capturing a photo to easily get the Longitude and Latitude location."}
+            </p>
+          </div>
 
           {error && (
             <div
@@ -488,6 +603,7 @@ function ReportTab({ isActive }) {
           )}
 
           <div className="report-inputs">
+            {/* 1. Longitude */}
             <input
               type="text"
               className="rounded-input"
@@ -495,6 +611,8 @@ function ReportTab({ isActive }) {
               value={coordinates.lon}
               readOnly
             />
+
+            {/* 2. Latitude */}
             <input
               type="text"
               className="rounded-input"
@@ -502,13 +620,8 @@ function ReportTab({ isActive }) {
               value={coordinates.lat}
               readOnly
             />
-            <SearchableDropdown
-              name="report_type_id"
-              options={reportTypes}
-              value={formData.report_type_id}
-              onChange={handleInputChange}
-              placeholder={t.reportType}
-            />
+
+            {/* 3. Municipality */}
             <SearchableDropdown
               name="municipality_id"
               options={municipalities}
@@ -516,6 +629,8 @@ function ReportTab({ isActive }) {
               onChange={handleInputChange}
               placeholder={t.incidentMun}
             />
+
+            {/* 4. Barangay */}
             <SearchableDropdown
               name="barangay_id"
               options={barangays}
@@ -528,6 +643,8 @@ function ReportTab({ isActive }) {
               }
               disabled={!formData.municipality_id}
             />
+
+            {/* 5. Purok / Sitio (Auto-Filled) */}
             <input
               type="text"
               name="purok_sitio"
@@ -536,14 +653,27 @@ function ReportTab({ isActive }) {
               value={formData.purok_sitio}
               onChange={handleInputChange}
             />
+
+            {/* 6. Report Type */}
+            <SearchableDropdown
+              name="report_type_id"
+              options={reportTypes}
+              value={formData.report_type_id}
+              onChange={handleInputChange}
+              placeholder={t.reportType}
+            />
+
+            {/* 7. Landmark (Left blank on purpose for manual entry) */}
             <input
               type="text"
               name="landmark"
               className="rounded-input"
-              placeholder={t.landmarkPlaceholder}
+              placeholder={t.landmarkPlaceholder || "Landmark"}
               value={formData.landmark}
               onChange={handleInputChange}
             />
+
+            {/* 8. Description */}
             <input
               type="text"
               name="description"

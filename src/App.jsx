@@ -1,20 +1,16 @@
 import { useState, useEffect } from "react";
 import { supabase } from "./supabaseClient";
 import LoadingScreen from "./components/LoadingScreen";
-import RoleSelection from "./RoleSelection";
-import Auth from "./RESIDENTS/Auth";
+import Auth from "./LoginSignup/Auth";
 import ResidentDashboard from "./RESIDENTS/ResidentDashboard";
-import LinemanAuth from "./LINEMAN/LinemanAuth";
 import LinemanDashboard from "./LINEMAN/LinemanDashboard";
 
-// import LinemanRegister from "./TESTING/LinemanRegister";
 function App() {
   const [session, setSession] = useState(null);
   const [userRole, setUserRole] = useState(null);
 
   const [appLoading, setAppLoading] = useState(true);
   const [roleFetching, setRoleFetching] = useState(false);
-  const [authView, setAuthView] = useState("selection");
 
   const isDevRoute = window.location.pathname === "/dev-lineman-signup";
 
@@ -37,7 +33,6 @@ function App() {
         fetchUserRole(session.user.id);
       } else {
         setUserRole(null);
-        setAuthView("selection");
         setAppLoading(false);
         setRoleFetching(false);
       }
@@ -93,8 +88,7 @@ function App() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor:
-            "#f8fafc" /* Soft light background so the shapes pop! */,
+          backgroundColor: "#f8fafc",
         }}
       >
         <LoadingScreen message="LOADING ISELCONNECT..." />
@@ -106,35 +100,35 @@ function App() {
     return <LinemanRegister onBack={() => (window.location.href = "/")} />;
   }
 
+  if (!session) {
+    return <Auth onBack={() => console.log("Already at root login screen")} />;
+  }
+
   if (session && userRole) {
     if (userRole === 7) return <ResidentDashboard />;
     if (userRole === 9) return <LinemanDashboard />;
   }
 
-  if (authView === "selection") {
-    return (
-      <RoleSelection
-        onSelectResident={() => setAuthView("resident")}
-        onSelectLineman={() => setAuthView("lineman")}
-      />
-    );
-  }
-
-  if (authView === "resident") {
-    return <Auth onBack={() => setAuthView("selection")} />;
-  }
-
-  if (authView === "lineman") {
-    return <LinemanAuth onBack={() => setAuthView("selection")} />;
-  }
-
   return (
-    <div className="app-restricted-screen">
+    <div
+      className="app-restricted-screen"
+      style={{ textAlign: "center", padding: "50px" }}
+    >
       <h2>Access Restricted</h2>
       <p>Your account role cannot access this mobile portal.</p>
       <button
         onClick={() => supabase.auth.signOut()}
         className="app-signout-btn"
+        style={{
+          padding: "10px 20px",
+          backgroundColor: "#1b0b8c",
+          color: "white",
+          borderRadius: "8px",
+          border: "none",
+          marginTop: "20px",
+          cursor: "pointer",
+          fontWeight: "bold",
+        }}
       >
         Sign Out
       </button>
@@ -143,18 +137,3 @@ function App() {
 }
 
 export default App;
-
-// import React from 'react';
-// // Make sure this path is correct based on where you saved it!
-// import AdminScheduleAdvisory from './TESTING/AdminScheduleAdvisory';
-
-// function App() {
-//   return (
-//     <div style={{ backgroundColor: "#e2e8f0", minHeight: "100vh", padding: "20px" }}>
-//       <AdminScheduleAdvisory />
-//     </div>
-//   );
-// }
-
-// // THIS IS THE CRITICAL LINE THAT WAS MISSING!
-// export default App;
