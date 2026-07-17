@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../supabaseClient";
 import {
   ChevronLeft,
@@ -7,9 +8,25 @@ import {
   CheckCircle,
   Circle,
   ShieldCheck,
+  CreditCard,
+  UserCheck,
+  ChevronDown,
 } from "lucide-react";
 import logo from "../assets/ISELCONNECT.png";
 import { logSystemAction } from "../utils/logger";
+
+// Import our new separated components
+import IdVerification from "./IdVerification";
+import EmailOtpVerification from "./EmailOtpVerification";
+
+const base64ToBlob = (base64, mimeType = "image/jpeg") => {
+  const byteCharacters = atob(base64.split(",")[1]);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  return new Blob([new Uint8Array(byteNumbers)], { type: mimeType });
+};
 
 const validatePassword = (password) => {
   const isValid = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$/.test(
@@ -19,16 +36,148 @@ const validatePassword = (password) => {
   return null;
 };
 
+// --- SEARCHABLE DROPDOWN COMPONENT ---
+const SearchableDropdown = ({
+  options,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  name,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef(null);
+
+  const selectedOption = options.find(
+    (opt) => opt.id.toString() === value?.toString(),
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((opt) =>
+    opt.name.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  const displayValue = isOpen
+    ? searchTerm
+    : selectedOption
+      ? selectedOption.name
+      : "";
+
+  return (
+    <div ref={dropdownRef} style={{ position: "relative", width: "100%" }}>
+      <input
+        type="text"
+        name={name}
+        className="auth-input"
+        style={{
+          opacity: disabled ? 0.6 : 1,
+          cursor: disabled ? "not-allowed" : "text",
+          width: "100%",
+          boxSizing: "border-box",
+        }}
+        placeholder={placeholder}
+        value={displayValue}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          if (!isOpen) setIsOpen(true);
+        }}
+        onClick={() => !disabled && setIsOpen(true)}
+        disabled={disabled}
+        autoComplete="off"
+      />
+      <div
+        style={{
+          position: "absolute",
+          right: "15px",
+          top: "50%",
+          transform: "translateY(-50%)",
+          pointerEvents: "none",
+        }}
+      >
+        <ChevronDown size={20} color="#1b0b8c" />
+      </div>
+      {isOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            backgroundColor: "#ffffff",
+            border: "2px solid #1b0b8c",
+            borderRadius: "10px",
+            maxHeight: "200px",
+            overflowY: "auto",
+            zIndex: 9999,
+            boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+            marginTop: "5px",
+            padding: "5px",
+          }}
+        >
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map((opt) => (
+              <div
+                key={opt.id}
+                onClick={() => {
+                  onChange({ target: { name, value: opt.id } });
+                  setIsOpen(false);
+                  setSearchTerm("");
+                }}
+                style={{
+                  padding: "10px 15px",
+                  cursor: "pointer",
+                  borderRadius: "8px",
+                  color: "#1e293b",
+                  fontWeight: selectedOption?.id === opt.id ? "bold" : "normal",
+                  backgroundColor:
+                    selectedOption?.id === opt.id ? "#f1f5f9" : "transparent",
+                }}
+              >
+                {opt.name}
+              </div>
+            ))
+          ) : (
+            <div
+              style={{
+                padding: "10px 15px",
+                color: "#94a3b8",
+                textAlign: "center",
+              }}
+            >
+              No results found
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 function SignUp({ onBack }) {
+  // --- STATE MANAGEMENT ---
   const [signupStep, setSignupStep] = useState("privacy");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
+  // Form Data States
   const [municipalities, setMunicipalities] = useState([]);
   const [barangays, setBarangays] = useState([]);
-
   const [formData, setFormData] = useState({
+    idType: "PhilID",
+    idNumber: "",
     email: "",
     password: "",
     mobileNumber: "",
@@ -39,15 +188,44 @@ function SignUp({ onBack }) {
     otherLocation: "",
     municipality_id: "",
     barangay_id: "",
+    otp: "",
   });
 
+  // Saved Camera Images for Final Submission
+  const [capturedIdImage, setCapturedIdImage] = useState(null);
+  const [capturedSelfieImage, setCapturedSelfieImage] = useState(null);
+
+  // Prevent background scrolling when modal is open
+  useEffect(() => {
+    if (showSuccessModal) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showSuccessModal]);
+
+  // --- USE EFFECTS FOR LOCATION DATA ---
   useEffect(() => {
     const fetchMunicipalities = async () => {
       const { data, error } = await supabase
         .from("municipalities")
         .select("id, name")
         .order("name", { ascending: true });
-      if (data && !error) setMunicipalities(data);
+
+      if (data && !error) {
+        const otherOption = data.find(
+          (m) => m.name === "Other / Outside Coverage Area",
+        );
+        const regularMunicipalities = data.filter(
+          (m) => m.name !== "Other / Outside Coverage Area",
+        );
+
+        if (otherOption) {
+          setMunicipalities([otherOption, ...regularMunicipalities]);
+        } else {
+          setMunicipalities(data);
+        }
+      }
     };
     fetchMunicipalities();
   }, []);
@@ -90,6 +268,27 @@ function SignUp({ onBack }) {
       (m) => m.id.toString() === formData.municipality_id.toString(),
     )?.name === "Other / Outside Coverage Area";
 
+  // --- HANDLERS FOR THE NEW CAMERA COMPONENT ---
+  const handleIdCaptured = (imageSrc, parsedData) => {
+    setCapturedIdImage(imageSrc);
+
+    // Automatically fill in the form with OCR data if it exists
+    setFormData((prev) => ({
+      ...prev,
+      idNumber: parsedData.idNumber || prev.idNumber,
+      firstName: parsedData.firstName || prev.firstName,
+      lastName: parsedData.lastName || prev.lastName,
+    }));
+
+    setSignupStep("selfie-scan");
+  };
+
+  const handleSelfieCaptured = (imageSrc) => {
+    setCapturedSelfieImage(imageSrc);
+    setSignupStep("form");
+  };
+
+  // --- SUPABASE SIGN UP & FILE UPLOAD LOGIC ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -100,7 +299,14 @@ function SignUp({ onBack }) {
       if (passwordError) throw new Error(passwordError);
       if (isOtherMunicipality && !formData.otherLocation.trim())
         throw new Error("Please provide your City / Province.");
+      if (!formData.idNumber.trim())
+        throw new Error("Please provide your ID Number.");
+      if (!capturedIdImage || !capturedSelfieImage)
+        throw new Error(
+          "Verification photos are missing. Please restart sign-up.",
+        );
 
+      // 1. Create the Auth Account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
@@ -110,6 +316,33 @@ function SignUp({ onBack }) {
       if (!authData?.user?.id)
         throw new Error("Failed to create account. Email might already exist.");
 
+      const userId = authData.user.id;
+
+      // 2. Upload ID Photo
+      const idBlob = base64ToBlob(capturedIdImage);
+      const idFileName = `${userId}/id-${Date.now()}.jpg`;
+      const { error: idUploadError } = await supabase.storage
+        .from("verification_photos")
+        .upload(idFileName, idBlob, { contentType: "image/jpeg" });
+      if (idUploadError)
+        throw new Error("ID Upload Blocked: " + idUploadError.message);
+      const idPhotoUrl = supabase.storage
+        .from("verification_photos")
+        .getPublicUrl(idFileName).data.publicUrl;
+
+      // 3. Upload Selfie
+      const selfieBlob = base64ToBlob(capturedSelfieImage);
+      const selfieFileName = `${userId}/selfie-${Date.now()}.jpg`;
+      const { error: selfieUploadError } = await supabase.storage
+        .from("verification_photos")
+        .upload(selfieFileName, selfieBlob, { contentType: "image/jpeg" });
+      if (selfieUploadError)
+        throw new Error("Selfie Upload Blocked: " + selfieUploadError.message);
+      const selfieUrl = supabase.storage
+        .from("verification_photos")
+        .getPublicUrl(selfieFileName).data.publicUrl;
+
+      // 4. Save Core Profile Data to 'users' table
       let finalPurokSitio = formData.purokSitio.trim();
       if (isOtherMunicipality && formData.otherLocation.trim()) {
         finalPurokSitio = finalPurokSitio
@@ -117,9 +350,9 @@ function SignUp({ onBack }) {
           : formData.otherLocation.trim();
       }
 
-      const { error: dbError } = await supabase.from("users").insert([
+      const { error: userError } = await supabase.from("users").insert([
         {
-          id: authData.user.id,
+          id: userId,
           first_name: formData.firstName.trim(),
           middle_name: formData.middleName.trim() || null,
           last_name: formData.lastName.trim(),
@@ -131,18 +364,73 @@ function SignUp({ onBack }) {
           barangay_id: parseInt(formData.barangay_id),
         },
       ]);
+      if (userError) throw userError;
 
-      if (dbError) throw dbError;
+      // 5. Save eKYC Documents to the new 'user_verifications' table
+      const { error: kycError } = await supabase
+        .from("user_verifications")
+        .insert([
+          {
+            user_id: userId,
+            id_type: formData.idType,
+            id_number: formData.idNumber.trim(),
+            id_photo_url: idPhotoUrl,
+            selfie_photo_url: selfieUrl,
+            verification_status: "pending",
+          },
+        ]);
+      if (kycError) throw kycError;
 
       localStorage.setItem("isNewResident", "true");
       await logSystemAction(
         "USER_SIGNUP",
-        "Resident created a verified account.",
+        `Resident created account and submitted eKYC photos.`,
       );
+
+      setSignupStep("otp");
     } catch (error) {
-      setErrorMsg(error.message);
+      if (
+        error.code === "23505" &&
+        error.message.includes("unique_id_number")
+      ) {
+        setErrorMsg("This ID Number is already registered to another account.");
+      } else {
+        setErrorMsg(error.message);
+      }
+    } finally {
       setLoading(false);
     }
+  };
+
+  // --- OTP VERIFICATION LOGIC ---
+  const handleVerifyOTP = async () => {
+    setLoading(true);
+    setErrorMsg("");
+
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email: formData.email.trim(),
+        token: formData.otp.trim(),
+        type: "signup",
+      });
+
+      if (error) throw error;
+      setShowSuccessModal(true);
+    } catch (err) {
+      setErrorMsg(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- UI HELPERS ---
+  const handleBackNavigation = () => {
+    if (signupStep === "otp") return;
+    if (signupStep === "form") setSignupStep("selfie-scan");
+    else if (signupStep === "selfie-scan") setSignupStep("id-scan");
+    else if (signupStep === "id-scan") setSignupStep("id-select");
+    else if (signupStep === "id-select") setSignupStep("privacy");
+    else onBack();
   };
 
   const hasLength = formData.password.length >= 8;
@@ -152,6 +440,85 @@ function SignUp({ onBack }) {
 
   return (
     <div className="auth-layout">
+      {/* SUCCESS MODAL */}
+      {showSuccessModal &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              width: "100vw",
+              height: "100vh",
+              backgroundColor: "rgba(0, 0, 0, 0.65)",
+              zIndex: 999999,
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: "#fff",
+                padding: "30px",
+                borderRadius: "20px",
+                width: "90%",
+                maxWidth: "400px",
+                textAlign: "center",
+                boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+                animation: "slideUpFade 0.3s ease-out",
+              }}
+            >
+              <CheckCircle
+                size={60}
+                color="#16a34a"
+                style={{ margin: "0 auto 15px auto" }}
+              />
+              <h3
+                style={{
+                  color: "#1e293b",
+                  fontSize: "1.5rem",
+                  fontWeight: "900",
+                  margin: "0 0 10px 0",
+                }}
+              >
+                Verification Complete!
+              </h3>
+              <p
+                style={{
+                  color: "#475569",
+                  fontSize: "0.9rem",
+                  lineHeight: "1.5",
+                  margin: "0 0 25px 0",
+                }}
+              >
+                Your account is currently pending admin approval. You can now
+                log in.
+              </p>
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  onBack();
+                }}
+                style={{
+                  backgroundColor: "#1b0b8c",
+                  color: "#fff",
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: "25px",
+                  border: "none",
+                  fontWeight: "bold",
+                  fontSize: "1rem",
+                  cursor: "pointer",
+                }}
+              >
+                Return to Login
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
+
       <div
         className="auth-top-section auth-bg-photo"
         style={{
@@ -161,24 +528,22 @@ function SignUp({ onBack }) {
           alignItems: "center",
         }}
       >
-        <button
-          className="auth-back-btn"
-          type="button"
-          style={{
-            position: "absolute",
-            top: "20px",
-            left: "20px",
-            zIndex: 10,
-            animation: "contentFade 0.3s ease-out",
-          }}
-          onClick={() => {
-            if (signupStep === "form") setSignupStep("privacy");
-            else onBack();
-          }}
-        >
-          <ChevronLeft size={24} strokeWidth={2.5} color="#1e1b4b" />
-        </button>
-
+        {signupStep !== "otp" && (
+          <button
+            className="auth-back-btn"
+            type="button"
+            style={{
+              position: "absolute",
+              top: "20px",
+              left: "20px",
+              zIndex: 10,
+              animation: "contentFade 0.3s ease-out",
+            }}
+            onClick={handleBackNavigation}
+          >
+            <ChevronLeft size={24} strokeWidth={2.5} color="#1e1b4b" />
+          </button>
+        )}
         <div
           className="auth-logo-container"
           style={{ display: "flex", justifyContent: "center", width: "100%" }}
@@ -197,7 +562,6 @@ function SignUp({ onBack }) {
       >
         <div className="auth-title-container">
           <h2 className="auth-form-title">
-            <span className="text-yellow">ISELCONNECT</span>{" "}
             <span className="text-white">SIGN UP</span>
           </h2>
           <div className="auth-title-underline"></div>
@@ -205,6 +569,7 @@ function SignUp({ onBack }) {
 
         {errorMsg && <div className="error-alert">{errorMsg}</div>}
 
+        {/* STEP 1: PRIVACY ACT */}
         {signupStep === "privacy" && (
           <div
             style={{
@@ -237,7 +602,7 @@ function SignUp({ onBack }) {
                 <h3
                   style={{ margin: 0, fontWeight: "900", fontSize: "1.1rem" }}
                 >
-                  Data Privacy Act of 2012
+                  Data Privacy & Verification
                 </h3>
               </div>
               <p
@@ -262,11 +627,10 @@ function SignUp({ onBack }) {
                   textAlign: "justify",
                 }}
               >
-                By proceeding, you consent to the collection, processing, and
-                storage of your personal data (Name, Address, Mobile Number, and
-                Location coordinates) solely for the purpose of managing your
-                account, verifying outage reports, and communicating system
-                updates.
+                To maintain a secure <strong>"One Account Per Person"</strong>{" "}
+                policy, you will be required to provide a Valid Government ID
+                and a Live Selfie. This prevents duplicate accounts and ensures
+                accurate reporting.
               </p>
               <p
                 style={{
@@ -278,44 +642,107 @@ function SignUp({ onBack }) {
                 }}
               >
                 Your data will never be shared with unverified third parties and
-                is exclusively handled by authorized ISELCO-1 personnel and
-                dispatchers.
+                is exclusively handled by authorized ISELCO-1 personnel.
               </p>
             </div>
-
             <div style={{ marginTop: "20px", flexShrink: 0 }}>
               <button
                 type="button"
                 className="auth-submit-btn"
-                onClick={() => setSignupStep("form")}
+                onClick={() => setSignupStep("id-select")}
                 style={{ backgroundColor: "#16a34a" }}
               >
-                I Agree & Continue
+                I Agree & Proceed
               </button>
-              <div style={{ textAlign: "center", marginTop: "15px" }}>
-                <p style={{ color: "#e2e8f0", fontSize: "0.9rem", margin: 0 }}>
-                  Changed your mind?{" "}
-                  <button
-                    type="button"
-                    onClick={onBack}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#facc15",
-                      fontWeight: "900",
-                      cursor: "pointer",
-                      fontSize: "0.9rem",
-                      padding: 0,
-                    }}
-                  >
-                    Cancel Sign Up
-                  </button>
-                </p>
-              </div>
             </div>
           </div>
         )}
 
+        {/* STEP 2: SELECT ID TYPE */}
+        {signupStep === "id-select" && (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              animation: "contentFade 0.3s ease-out",
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: "#f8fafc",
+                padding: "20px",
+                borderRadius: "15px",
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <CreditCard
+                size={48}
+                color="#1b0b8c"
+                style={{ marginBottom: "15px" }}
+              />
+              <h3
+                style={{
+                  color: "#1e293b",
+                  margin: "0 0 10px 0",
+                  fontWeight: "900",
+                }}
+              >
+                Select Valid ID
+              </h3>
+              <p
+                style={{
+                  fontSize: "0.85rem",
+                  color: "#64748b",
+                  textAlign: "center",
+                  marginBottom: "20px",
+                }}
+              >
+                Choose the ID you will scan for verification.
+              </p>
+
+              <div className="auth-input-group" style={{ width: "100%" }}>
+                <select
+                  name="idType"
+                  value={formData.idType}
+                  onChange={handleInputChange}
+                  className="auth-input"
+                  style={{ textAlign: "center", fontWeight: "bold" }}
+                >
+                  <option value="PhilID">National ID (PhilSys)</option>
+                  <option value="DriverLicense">Driver's License</option>
+                  <option value="UMID">UMID</option>
+                  <option value="Passport">Passport</option>
+                  <option value="Postal">Postal ID</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: "20px", flexShrink: 0 }}>
+              <button
+                type="button"
+                className="auth-submit-btn"
+                onClick={() => setSignupStep("id-scan")}
+              >
+                Proceed to Camera Scanner
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEPS 3 & 4: IMPORTED CAMERA COMPONENT */}
+        {(signupStep === "id-scan" || signupStep === "selfie-scan") && (
+          <IdVerification
+            step={signupStep}
+            onIdCaptured={handleIdCaptured}
+            onSelfieCaptured={handleSelfieCaptured}
+          />
+        )}
+
+        {/* STEP 5: MAIN REGISTRATION FORM */}
         {signupStep === "form" && (
           <form
             onSubmit={handleSubmit}
@@ -338,7 +765,47 @@ function SignUp({ onBack }) {
                 marginBottom: "15px",
               }}
             >
+              <div
+                style={{
+                  background: "#ecfdf5",
+                  padding: "10px",
+                  borderRadius: "10px",
+                  marginBottom: "5px",
+                  border: "1px solid #10b981",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
+              >
+                <UserCheck size={18} color="#059669" />
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#065f46",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Photos Secured. Complete details below.
+                </span>
+              </div>
+
               <div className="auth-input-group">
+                <input
+                  type="text"
+                  name="idNumber"
+                  placeholder="ID Number"
+                  value={formData.idNumber}
+                  onChange={handleInputChange}
+                  required
+                  className="auth-input"
+                  style={{ border: "2px solid #1b0b8c" }}
+                />
+              </div>
+
+              <div
+                className="auth-input-group"
+                style={{ display: "flex", gap: "10px" }}
+              >
                 <input
                   type="text"
                   name="firstName"
@@ -347,8 +814,20 @@ function SignUp({ onBack }) {
                   onChange={handleInputChange}
                   required
                   className="auth-input"
+                  style={{ flex: 1 }}
+                />
+                <input
+                  type="text"
+                  name="lastName"
+                  placeholder="Last Name"
+                  value={formData.lastName}
+                  onChange={handleInputChange}
+                  required
+                  className="auth-input"
+                  style={{ flex: 1 }}
                 />
               </div>
+
               <div className="auth-input-group">
                 <input
                   type="text"
@@ -359,17 +838,7 @@ function SignUp({ onBack }) {
                   className="auth-input"
                 />
               </div>
-              <div className="auth-input-group">
-                <input
-                  type="text"
-                  name="lastName"
-                  placeholder="Last Name"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  required
-                  className="auth-input"
-                />
-              </div>
+
               <div className="auth-input-group">
                 <input
                   type="tel"
@@ -383,44 +852,30 @@ function SignUp({ onBack }) {
               </div>
 
               <div className="auth-input-group">
-                <select
+                <SearchableDropdown
                   name="municipality_id"
+                  options={municipalities}
                   value={formData.municipality_id}
                   onChange={handleInputChange}
-                  required
-                  className="auth-input"
-                >
-                  <option value="" disabled>
-                    Select Municipality
-                  </option>
-                  {municipalities.map((mun) => (
-                    <option key={mun.id} value={mun.id}>
-                      {mun.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Select Municipality"
+                />
               </div>
+
               <div className="auth-input-group">
-                <select
+                <SearchableDropdown
                   name="barangay_id"
+                  options={barangays}
                   value={formData.barangay_id}
                   onChange={handleInputChange}
-                  required
-                  className="auth-input"
-                  disabled={!formData.municipality_id || isOtherMunicipality}
-                >
-                  <option value="" disabled>
-                    {!formData.municipality_id
+                  placeholder={
+                    !formData.municipality_id
                       ? "Select Municipality first"
-                      : "Select Barangay"}
-                  </option>
-                  {barangays.map((bar) => (
-                    <option key={bar.id} value={bar.id}>
-                      {bar.name}
-                    </option>
-                  ))}
-                </select>
+                      : "Select Barangay"
+                  }
+                  disabled={!formData.municipality_id || isOtherMunicipality}
+                />
               </div>
+
               {isOtherMunicipality && (
                 <div className="auth-input-group">
                   <input
@@ -434,6 +889,7 @@ function SignUp({ onBack }) {
                   />
                 </div>
               )}
+
               <div className="auth-input-group">
                 <input
                   type="text"
@@ -460,6 +916,7 @@ function SignUp({ onBack }) {
                   className="auth-input"
                 />
               </div>
+
               <div className="auth-input-group">
                 <div className="password-input-wrapper">
                   <input
@@ -574,30 +1031,21 @@ function SignUp({ onBack }) {
                 className="auth-submit-btn"
                 disabled={loading}
               >
-                {loading ? "Creating Account..." : "Create Account"}
+                {loading ? "Registering Account..." : "Submit Registration"}
               </button>
-              <div style={{ textAlign: "center", marginTop: "15px" }}>
-                <p style={{ color: "#e2e8f0", fontSize: "0.9rem", margin: 0 }}>
-                  Already have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={onBack}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#facc15",
-                      fontWeight: "900",
-                      cursor: "pointer",
-                      fontSize: "0.9rem",
-                      padding: 0,
-                    }}
-                  >
-                    Login here!
-                  </button>
-                </p>
-              </div>
             </div>
           </form>
+        )}
+
+        {/* STEP 6: IMPORTED EMAIL OTP COMPONENT */}
+        {signupStep === "otp" && (
+          <EmailOtpVerification
+            email={formData.email}
+            otp={formData.otp}
+            onOtpChange={handleInputChange}
+            onVerifyOTP={handleVerifyOTP}
+            loading={loading}
+          />
         )}
       </div>
 

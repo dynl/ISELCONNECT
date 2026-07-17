@@ -131,7 +131,6 @@ function Auth({ onBack }) {
               letterSpacing: "1px",
             }}
           >
-            <span style={{ color: "#facc15" }}>ISELCONNECT</span>{" "}
             <span style={{ color: "#ffffff" }}>LOGIN</span>
           </h2>
           <div

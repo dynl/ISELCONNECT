@@ -11,6 +11,7 @@ import {
   MapPin,
   Users,
   MessageSquare,
+  AlertCircle,
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
@@ -33,6 +34,10 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const webcamRef = useRef(null);
+  const watchIdRef = useRef(null);
+
+  const linemanMarkerRef = useRef(null);
+  const lineRef = useRef(null);
 
   const [activeStatus, setActiveStatus] = useState(
     report.report_statuses?.name?.toUpperCase() || "PENDING",
@@ -42,12 +47,10 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
   const [pendingStatusUpdate, setPendingStatusUpdate] = useState(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  // --- NEW RESOLUTION FLOW STATES ---
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isRemarksOpen, setIsRemarksOpen] = useState(false);
   const [evidencePhoto, setEvidencePhoto] = useState(null);
   const [resolutionRemarks, setResolutionRemarks] = useState("");
-  // ----------------------------------
 
   const [showMap, setShowMap] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,8 +59,12 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
   const [adminRemarks, setAdminRemarks] = useState("");
   const [loadingAssignmentDetails, setLoadingAssignmentDetails] =
     useState(true);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  const [linemanLocation, setLinemanLocation] = useState(null);
 
   const isResolved = activeStatus === "RESOLVED";
+  const isPendingVerification = activeStatus === "PENDING VERIFICATION";
 
   useEffect(() => {
     const fetchAssignmentDetails = async () => {
@@ -67,6 +74,8 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
         const {
           data: { user },
         } = await supabase.auth.getUser();
+        setCurrentUserId(user?.id);
+
         const { data, error } = await supabase
           .from("assignments")
           .select(`lineman_id, admin_remarks, users ( first_name, last_name )`)
@@ -95,10 +104,59 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
   }, [report.id]);
 
   useEffect(() => {
+    if (activeStatus === "IN PROGRESS" && currentUserId) {
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            setLinemanLocation({ lat: latitude, lon: longitude });
+            await supabase
+              .from("assignments")
+              .update({ current_lat: latitude, current_lon: longitude })
+              .eq("report_id", report.id)
+              .eq("lineman_id", currentUserId);
+          },
+          (err) => console.warn("Initial GPS ping failed:", err.message),
+          { enableHighAccuracy: true },
+        );
+
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            setLinemanLocation({ lat: latitude, lon: longitude });
+            await supabase
+              .from("assignments")
+              .update({ current_lat: latitude, current_lon: longitude })
+              .eq("report_id", report.id)
+              .eq("lineman_id", currentUserId);
+          },
+          (error) => console.warn("Live tracking error:", error.message),
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 },
+        );
+      }
+    } else {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    }
+
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, [activeStatus, currentUserId, report.id]);
+
+  useEffect(() => {
     if (!showMap) {
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
+        markerRef.current = null;
+        linemanMarkerRef.current = null;
+        lineRef.current = null;
       }
       return;
     }
@@ -130,6 +188,116 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
     }, 100);
   }, [report, showMap]);
 
+  // =========================================================================
+  // 🚀 DYNAMIC LINEMAN MARKER & OSRM ROAD ROUTING
+  // =========================================================================
+  useEffect(() => {
+    if (!showMap || !linemanLocation || !report.latitude || !report.longitude)
+      return;
+
+    let isDrawing = true;
+
+    const drawMapElements = async () => {
+      if (!isDrawing) return;
+
+      if (!mapRef.current) {
+        setTimeout(drawMapElements, 100);
+        return;
+      }
+
+      const linemanLat = parseFloat(linemanLocation.lat);
+      const linemanLon = parseFloat(linemanLocation.lon);
+      const reportLat = parseFloat(report.latitude);
+      const reportLon = parseFloat(report.longitude);
+
+      // 1. Draw or Update Lineman Marker
+      const linemanIcon = L.divIcon({
+        className: "live-tracker-icon",
+        html: `<div style="background-color: #10b981; width: 26px; height: 26px; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 0 15px rgba(16, 185, 129, 0.8); display: flex; align-items: center; justify-content: center; font-size: 14px; animation: pulse-ring 2s infinite;">⚡</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      });
+
+      if (!linemanMarkerRef.current) {
+        linemanMarkerRef.current = L.marker([linemanLat, linemanLon], {
+          icon: linemanIcon,
+          zIndexOffset: 1000,
+        }).addTo(mapRef.current);
+      } else {
+        linemanMarkerRef.current.setLatLng([linemanLat, linemanLon]);
+      }
+
+      // 2. Fetch OSRM Road Routing Data
+      try {
+        const response = await fetch(
+          `https://router.project-osrm.org/route/v1/driving/${linemanLon},${linemanLat};${reportLon},${reportLat}?overview=full&geometries=geojson`,
+        );
+        const data = await response.json();
+
+        if (!isDrawing) return;
+
+        let routePoints = [];
+
+        if (data.routes && data.routes[0]) {
+          routePoints = data.routes[0].geometry.coordinates.map((coord) => [
+            coord[1],
+            coord[0],
+          ]);
+        } else {
+          routePoints = [
+            [linemanLat, linemanLon],
+            [reportLat, reportLon],
+          ];
+        }
+
+        // 3. Draw or Update Navy Blue Direction Line
+        if (!lineRef.current) {
+          lineRef.current = L.polyline(routePoints, {
+            color: "#1b0b8c",
+            weight: 5,
+            dashArray: "10, 10",
+            opacity: 0.8,
+          }).addTo(mapRef.current);
+
+          mapRef.current.fitBounds(lineRef.current.getBounds(), {
+            padding: [50, 50],
+            maxZoom: 18,
+          });
+        } else {
+          lineRef.current.setLatLngs(routePoints);
+        }
+      } catch (error) {
+        console.error("Routing failed, falling back to straight line:", error);
+        if (!isDrawing) return;
+
+        const fallbackPoints = [
+          [linemanLat, linemanLon],
+          [reportLat, reportLon],
+        ];
+        if (!lineRef.current) {
+          lineRef.current = L.polyline(fallbackPoints, {
+            color: "#1b0b8c",
+            weight: 5,
+            dashArray: "10, 10",
+            opacity: 0.8,
+          }).addTo(mapRef.current);
+          mapRef.current.fitBounds(lineRef.current.getBounds(), {
+            padding: [50, 50],
+            maxZoom: 18,
+          });
+        } else {
+          lineRef.current.setLatLngs(fallbackPoints);
+        }
+      }
+    };
+
+    drawMapElements();
+
+    return () => {
+      isDrawing = false;
+    };
+  }, [showMap, linemanLocation, report.latitude, report.longitude]);
+
   useEffect(() => {
     const navBar = document.querySelector(".bottom-nav-wrapper");
     if (navBar) navBar.style.display = "none";
@@ -139,11 +307,11 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
   }, []);
 
   const handleStatusClick = (statusName) => {
-    if (statusName === activeStatus || isResolved) return;
+    if (statusName === activeStatus || isResolved || isPendingVerification)
+      return;
 
-    // NEW FLOW: If RESOLVED is clicked, bypass the alert and instantly open the camera
-    if (statusName === "RESOLVED") {
-      setPendingStatusUpdate("RESOLVED");
+    if (statusName === "PENDING VERIFICATION") {
+      setPendingStatusUpdate("PENDING VERIFICATION");
       setIsCameraOpen(true);
       return;
     }
@@ -159,8 +327,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
         setEvidencePhoto(imageSrc);
         setIsCameraOpen(false);
 
-        // After photo is taken, smoothly transition to the Remarks screen
-        if (pendingStatusUpdate === "RESOLVED") {
+        if (pendingStatusUpdate === "PENDING VERIFICATION") {
           setIsRemarksOpen(true);
         }
       }
@@ -173,15 +340,14 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
       let newStatusId = 1;
       if (pendingStatusUpdate === "PENDING") newStatusId = 1;
       if (pendingStatusUpdate === "IN PROGRESS") newStatusId = 2;
-      if (pendingStatusUpdate === "RESOLVED") newStatusId = 3;
+      if (pendingStatusUpdate === "PENDING VERIFICATION") newStatusId = 4;
 
       const updatePayload = { status_id: newStatusId };
 
-      // --- APPEND PHOTO AND REMARKS IF RESOLVED ---
-      if (pendingStatusUpdate === "RESOLVED") {
+      if (pendingStatusUpdate === "PENDING VERIFICATION") {
         if (!evidencePhoto) throw new Error("Evidence photo is missing.");
         if (!resolutionRemarks.trim())
-          throw new Error("Remarks are required to resolve.");
+          throw new Error("Remarks are required to verify resolution.");
 
         const fileName = `resolved-${report.id}-${Date.now()}.jpg`;
         const imageBlob = base64ToBlob(evidencePhoto);
@@ -197,8 +363,6 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
           .getPublicUrl(fileName);
 
         updatePayload.resolved_photo_url = publicUrlData.publicUrl;
-
-        // Note: Ensure you have a 'remarks' column in your 'reports' table for this!
         updatePayload.remarks = resolutionRemarks.trim();
       }
 
@@ -214,7 +378,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
 
       if (
         pendingStatusUpdate === "IN PROGRESS" ||
-        pendingStatusUpdate === "RESOLVED"
+        pendingStatusUpdate === "PENDING VERIFICATION"
       ) {
         const assignmentPayload =
           pendingStatusUpdate === "IN PROGRESS"
@@ -244,10 +408,6 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
     }
   };
 
-  // ==========================================
-  // FULL SCREEN OVERLAYS
-  // ==========================================
-
   if (showMap) {
     return (
       <div
@@ -263,6 +423,13 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
           flexDirection: "column",
         }}
       >
+        <style>{`
+          @keyframes pulse-ring {
+            0% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+          }
+        `}</style>
         <div
           style={{
             display: "flex",
@@ -299,6 +466,55 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
           </span>
         </div>
         <div style={{ flex: 1, width: "100%", position: "relative" }}>
+          <div
+            style={{
+              position: "absolute",
+              bottom: "30px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 1000,
+              background: "rgba(255,255,255,0.95)",
+              padding: "10px 15px",
+              borderRadius: "30px",
+              boxShadow: "0 5px 15px rgba(0,0,0,0.1)",
+              display: "flex",
+              gap: "15px",
+              fontWeight: "bold",
+              fontSize: "0.8rem",
+              color: "#334155",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <div
+                style={{
+                  width: "12px",
+                  height: "12px",
+                  background: "#ea4335",
+                  borderRadius: "50%",
+                  border: "2px solid #ffffff",
+                }}
+              ></div>
+              Issue
+            </div>
+            {activeStatus === "IN PROGRESS" && (
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "5px" }}
+              >
+                <div
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    background: "#10b981",
+                    borderRadius: "50%",
+                    border: "2px solid #fff",
+                    boxShadow: "0 0 5px rgba(16,185,129,0.5)",
+                  }}
+                ></div>
+                You
+              </div>
+            )}
+          </div>
+
           <div
             ref={mapContainerRef}
             style={{ position: "absolute", top: 0, bottom: 0, width: "100%" }}
@@ -454,7 +670,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
             onClick={() => {
               setIsRemarksOpen(false);
               setIsCameraOpen(true);
-            }} // Goes back to camera to retake photo
+            }}
             style={{
               background: "transparent",
               border: "none",
@@ -557,16 +773,14 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
               boxShadow: "0 6px 15px rgba(27, 11, 140, 0.2)",
             }}
           >
-            {isSubmitting ? "Saving Resolution..." : "Confirm & Resolve Report"}
+            {isSubmitting
+              ? "Submitting for Verification..."
+              : "Submit for Verification"}
           </button>
         </div>
       </div>
     );
   }
-
-  // ==========================================
-  // MAIN COMPONENT RENDER
-  // ==========================================
 
   return (
     <div className="detail-layout page-transition">
@@ -617,8 +831,8 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
             <div className="success-modal-body">
               <p>
                 {t.statusUpdatedText}{" "}
-                {activeStatus === "RESOLVED"
-                  ? t.resolved
+                {activeStatus === "PENDING VERIFICATION"
+                  ? "PENDING VERIFICATION"
                   : activeStatus === "IN PROGRESS"
                     ? t.inProgress
                     : t.pending}
@@ -638,13 +852,51 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
         </div>
       )}
 
-      <div className="detail-scrollable-content">
+      <div
+        className="detail-scrollable-content"
+        style={{ paddingBottom: "130px" }}
+      >
         <div className="detail-header">
           <button onClick={onBack} className="back-btn">
             <ChevronLeft size={28} strokeWidth={3} />
           </button>
           <h2>{report.report_types?.name || t.reportDetailsTitle}</h2>
         </div>
+
+        {(isResolved || isPendingVerification) && (
+          <div
+            style={{
+              margin: "15px 20px 10px 20px",
+              padding: "16px",
+              borderRadius: "15px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
+              background: isResolved ? "#fef2f2" : "#f0fdfa",
+              color: isResolved ? "#ef4444" : "#0d9488",
+              border: isResolved ? "2px solid #fca5a5" : "2px solid #5eead4",
+              boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
+            }}
+          >
+            {isResolved ? (
+              <CheckCircle size={22} strokeWidth={2.5} />
+            ) : (
+              <AlertCircle size={22} strokeWidth={2.5} />
+            )}
+            <span
+              style={{
+                fontWeight: "900",
+                fontSize: "0.95rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                textAlign: "center",
+              }}
+            >
+              {isResolved ? t.reportResolved : "Waiting for Admin Verification"}
+            </span>
+          </div>
+        )}
 
         <div className="detail-photo-section">
           {report.photo_url ? (
@@ -840,29 +1092,19 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
         </div>
       </div>
 
-      {isResolved && (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "8px",
-            background: "#fef2f2",
-            color: "#ef4444",
-            fontSize: "0.8rem",
-            fontWeight: "bold",
-            borderTop: "1px solid #fee2e2",
-            zIndex: 10,
-          }}
-        >
-          {t.reportResolved}
-        </div>
-      )}
-
-      <div className="status-action-bar">
+      <div
+        className="status-action-bar"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
         <button
           className={`status-icon-btn btn-pending ${activeStatus === "PENDING" ? "active active-pending" : ""}`}
           onClick={() => handleStatusClick("PENDING")}
-          disabled={isResolved}
-          style={isResolved ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+          disabled={isResolved || isPendingVerification}
+          style={
+            isResolved || isPendingVerification
+              ? { opacity: 0.5, cursor: "not-allowed" }
+              : {}
+          }
         >
           <Clock size={28} className="status-icon" />
           <span>{t.pending}</span>
@@ -870,18 +1112,28 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
         <button
           className={`status-icon-btn btn-inprogress ${activeStatus === "IN PROGRESS" ? "active active-inprogress" : ""}`}
           onClick={() => handleStatusClick("IN PROGRESS")}
-          disabled={isResolved}
-          style={isResolved ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+          disabled={isResolved || isPendingVerification}
+          style={
+            isResolved || isPendingVerification
+              ? { opacity: 0.5, cursor: "not-allowed" }
+              : {}
+          }
         >
           <Wrench size={28} className="status-icon" />
           <span>{t.inProgress}</span>
         </button>
         <button
-          className={`status-icon-btn btn-resolved ${activeStatus === "RESOLVED" ? "active active-resolved" : ""}`}
-          onClick={() => handleStatusClick("RESOLVED")}
+          className={`status-icon-btn btn-resolved ${activeStatus === "PENDING VERIFICATION" || activeStatus === "RESOLVED" ? "active active-resolved" : ""}`}
+          onClick={() => handleStatusClick("PENDING VERIFICATION")}
+          disabled={isResolved || isPendingVerification}
+          style={
+            isResolved || isPendingVerification
+              ? { opacity: 0.5, cursor: "not-allowed" }
+              : {}
+          }
         >
           <CheckCircle size={28} className="status-icon" />
-          <span>{t.resolved}</span>
+          <span>Verify</span>
         </button>
       </div>
     </div>

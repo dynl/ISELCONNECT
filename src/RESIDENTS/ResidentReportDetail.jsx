@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { ChevronLeft, Save, Edit2, X, CheckCircle, MapPin } from "lucide-react";
+import {
+  ChevronLeft,
+  Save,
+  Edit2,
+  X,
+  CheckCircle,
+  MapPin,
+  Navigation,
+} from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
 import { translations } from "../components/translations";
@@ -16,11 +24,17 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showMap, setShowMap] = useState(false);
 
+  const [linemanLocation, setLinemanLocation] = useState(null);
+
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+  const linemanMarkerRef = useRef(null);
+  const lineRef = useRef(null);
 
   const isPending = report.report_statuses?.name?.toUpperCase() === "PENDING";
+  const isInProgress =
+    report.report_statuses?.name?.toUpperCase() === "IN PROGRESS";
 
   const [formData, setFormData] = useState({
     report_type_id: report.report_type_id || "",
@@ -44,10 +58,74 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
   }, [isPending]);
 
   useEffect(() => {
+    if (!isInProgress) return;
+
+    let isMounted = true;
+    let activeChannel = null;
+
+    const setupTracking = async () => {
+      const { data, error } = await supabase
+        .from("assignments")
+        .select("id, current_lat, current_lon")
+        .eq("report_id", report.id)
+        .not("current_lat", "is", null)
+        .limit(1);
+
+      if (error || !data || data.length === 0 || !isMounted) return;
+
+      const assignment = data[0];
+
+      if (assignment.current_lat && assignment.current_lon) {
+        setLinemanLocation({
+          lat: assignment.current_lat,
+          lon: assignment.current_lon,
+        });
+      }
+
+      const assignmentId = assignment.id;
+      const uniqueChannelName = `tracking_${assignmentId}_${Date.now()}`;
+
+      activeChannel = supabase.channel(uniqueChannelName);
+
+      activeChannel
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "assignments",
+            filter: `id=eq.${assignmentId}`,
+          },
+          (payload) => {
+            if (payload.new.current_lat && payload.new.current_lon) {
+              setLinemanLocation({
+                lat: payload.new.current_lat,
+                lon: payload.new.current_lon,
+              });
+            }
+          },
+        )
+        .subscribe();
+    };
+
+    setupTracking();
+
+    return () => {
+      isMounted = false;
+      if (activeChannel) {
+        supabase.removeChannel(activeChannel);
+      }
+    };
+  }, [isInProgress, report.id]);
+
+  useEffect(() => {
     if (!showMap) {
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
+        markerRef.current = null;
+        linemanMarkerRef.current = null;
+        lineRef.current = null;
       }
       return;
     }
@@ -80,6 +158,121 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
       );
     }, 100);
   }, [showMap, report.latitude, report.longitude]);
+
+  // =========================================================================
+  // 🚀 DYNAMIC LINEMAN MARKER & OSRM ROAD ROUTING
+  // =========================================================================
+  useEffect(() => {
+    if (!showMap || !linemanLocation || !report.latitude || !report.longitude)
+      return;
+
+    let isDrawing = true;
+
+    const drawMapElements = async () => {
+      if (!isDrawing) return;
+
+      if (!mapRef.current) {
+        setTimeout(drawMapElements, 100);
+        return;
+      }
+
+      const linemanLat = parseFloat(linemanLocation.lat);
+      const linemanLon = parseFloat(linemanLocation.lon);
+      const reportLat = parseFloat(report.latitude);
+      const reportLon = parseFloat(report.longitude);
+
+      // 1. Draw or Update Lineman Marker
+      const linemanIcon = L.divIcon({
+        className: "live-tracker-icon",
+        html: `<div style="background-color: #10b981; width: 26px; height: 26px; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 0 15px rgba(16, 185, 129, 0.8); display: flex; align-items: center; justify-content: center; font-size: 14px; animation: pulse-ring 2s infinite;">⚡</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      });
+
+      if (!linemanMarkerRef.current) {
+        linemanMarkerRef.current = L.marker([linemanLat, linemanLon], {
+          icon: linemanIcon,
+          zIndexOffset: 1000,
+        }).addTo(mapRef.current);
+      } else {
+        linemanMarkerRef.current.setLatLng([linemanLat, linemanLon]);
+      }
+
+      // 2. Fetch OSRM Road Routing Data
+      try {
+        // OSRM requires coordinates in [Longitude, Latitude] format for the URL
+        const response = await fetch(
+          `https://router.project-osrm.org/route/v1/driving/${linemanLon},${linemanLat};${reportLon},${reportLat}?overview=full&geometries=geojson`,
+        );
+        const data = await response.json();
+
+        if (!isDrawing) return; // Stop if the user closed the map while it was fetching
+
+        let routePoints = [];
+
+        if (data.routes && data.routes[0]) {
+          // OSRM returns [Lon, Lat], but Leaflet needs [Lat, Lon]
+          routePoints = data.routes[0].geometry.coordinates.map((coord) => [
+            coord[1],
+            coord[0],
+          ]);
+        } else {
+          // Fallback to straight line if API fails to find a road
+          routePoints = [
+            [linemanLat, linemanLon],
+            [reportLat, reportLon],
+          ];
+        }
+
+        // 3. Draw or Update Navy Blue Direction Line
+        if (!lineRef.current) {
+          lineRef.current = L.polyline(routePoints, {
+            color: "#1b0b8c", // Navy Blue
+            weight: 5,
+            dashArray: "10, 10", // Dashed effect
+            opacity: 0.8,
+          }).addTo(mapRef.current);
+
+          // Auto-zoom to fit the whole route on screen
+          mapRef.current.fitBounds(lineRef.current.getBounds(), {
+            padding: [50, 50],
+            maxZoom: 18,
+          });
+        } else {
+          lineRef.current.setLatLngs(routePoints);
+        }
+      } catch (error) {
+        console.error("Routing failed, falling back to straight line:", error);
+        if (!isDrawing) return;
+
+        // Safety Fallback (Straight Line) if there's no internet or API issue
+        const fallbackPoints = [
+          [linemanLat, linemanLon],
+          [reportLat, reportLon],
+        ];
+        if (!lineRef.current) {
+          lineRef.current = L.polyline(fallbackPoints, {
+            color: "#1b0b8c",
+            weight: 5,
+            dashArray: "10, 10",
+            opacity: 0.8,
+          }).addTo(mapRef.current);
+          mapRef.current.fitBounds(lineRef.current.getBounds(), {
+            padding: [50, 50],
+            maxZoom: 18,
+          });
+        } else {
+          lineRef.current.setLatLngs(fallbackPoints);
+        }
+      }
+    };
+
+    drawMapElements();
+
+    return () => {
+      isDrawing = false;
+    };
+  }, [showMap, linemanLocation, report.latitude, report.longitude]);
 
   const handleEditClick = () => {
     setFormData({
@@ -150,6 +343,13 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
           flexDirection: "column",
         }}
       >
+        <style>{`
+          @keyframes pulse-ring {
+            0% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+          }
+        `}</style>
         <div
           style={{
             display: "flex",
@@ -186,6 +386,55 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
           </span>
         </div>
         <div style={{ flex: 1, width: "100%", position: "relative" }}>
+          <div
+            style={{
+              position: "absolute",
+              bottom: "30px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 1000,
+              background: "rgba(255,255,255,0.95)",
+              padding: "10px 15px",
+              borderRadius: "30px",
+              boxShadow: "0 5px 15px rgba(0,0,0,0.1)",
+              display: "flex",
+              gap: "15px",
+              fontWeight: "bold",
+              fontSize: "0.8rem",
+              color: "#334155",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <div
+                style={{
+                  width: "12px",
+                  height: "12px",
+                  background: "#facc15",
+                  borderRadius: "50%",
+                  border: "2px solid #1b0b8c",
+                }}
+              ></div>
+              Issue
+            </div>
+            {isInProgress && (
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "5px" }}
+              >
+                <div
+                  style={{
+                    width: "12px",
+                    height: "12px",
+                    background: "#10b981",
+                    borderRadius: "50%",
+                    border: "2px solid #fff",
+                    boxShadow: "0 0 5px rgba(16,185,129,0.5)",
+                  }}
+                ></div>
+                Lineman
+              </div>
+            )}
+          </div>
+
           <div
             ref={mapContainerRef}
             style={{ position: "absolute", top: 0, bottom: 0, width: "100%" }}
@@ -249,6 +498,40 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
           )}
         </div>
 
+        {isInProgress && linemanLocation && (
+          <div
+            style={{
+              background: "#ecfdf5",
+              border: "2px solid #10b981",
+              borderRadius: "15px",
+              padding: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              marginBottom: "15px",
+              color: "#065f46",
+              boxShadow: "0 4px 10px rgba(16, 185, 129, 0.15)",
+            }}
+          >
+            <Navigation
+              size={20}
+              color="#10b981"
+              style={{ animation: "pulse 1.5s infinite" }}
+            />
+            <span
+              style={{
+                fontWeight: "900",
+                letterSpacing: "0.5px",
+                fontSize: "0.9rem",
+              }}
+            >
+              LIVE TRACKING ACTIVE
+            </span>
+            <style>{`@keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }`}</style>
+          </div>
+        )}
+
         <button
           onClick={() => setShowMap(true)}
           style={{
@@ -278,7 +561,12 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
           <div className="rrd-status-row">
             <h3 className="rrd-status-label">{t.statusLabel}</h3>
             <span
-              className={`rrd-status-badge ${isPending ? "rrd-status-pending" : "rrd-status-resolved"}`}
+              className={`rrd-status-badge ${isPending ? "rrd-status-pending" : isInProgress ? "rrd-status-inprogress" : "rrd-status-resolved"}`}
+              style={
+                isInProgress
+                  ? { backgroundColor: "#bae6fd", color: "#0284c7" }
+                  : {}
+              }
             >
               {report.report_statuses?.name?.toUpperCase()}
             </span>
@@ -339,7 +627,7 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
             </div>
           ) : (
             <div className="rrd-view-wrapper">
-              {!isPending && (
+              {!isPending && !isInProgress && (
                 <p
                   className="rrd-processing-msg"
                   style={{

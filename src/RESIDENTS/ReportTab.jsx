@@ -8,6 +8,8 @@ import {
   ChevronLeft,
   ChevronDown,
   AlertTriangle,
+  Clock,
+  ShieldAlert,
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { logSystemAction } from "../utils/logger";
@@ -146,6 +148,9 @@ function ReportTab({ isActive }) {
   const currentLang = localStorage.getItem("appLanguage") || "English";
   const t = translations[currentLang];
 
+  // Verification State
+  const [verificationStatus, setVerificationStatus] = useState("loading");
+
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [coordinates, setCoordinates] = useState({ lat: "", lon: "" });
@@ -170,6 +175,39 @@ function ReportTab({ isActive }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
+
+  // --- 🔒 CHECK USER VERIFICATION STATUS ---
+  useEffect(() => {
+    const checkVerificationStatus = async () => {
+      try {
+        const {
+          data: { user },
+          error: authError,
+        } = await supabase.auth.getUser();
+
+        if (user && !authError) {
+          const { data, error: dbError } = await supabase
+            .from("user_verifications")
+            .select("verification_status")
+            .eq("user_id", user.id)
+            .single();
+
+          if (data && !dbError) {
+            setVerificationStatus(data.verification_status || "pending");
+          } else {
+            setVerificationStatus("pending");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to check verification status:", err);
+        setVerificationStatus("pending");
+      }
+    };
+
+    if (isActive) {
+      checkVerificationStatus();
+    }
+  }, [isActive]);
 
   useEffect(() => {
     if (showSuccessModal) {
@@ -214,16 +252,18 @@ function ReportTab({ isActive }) {
     fetchBarangays();
   }, [formData.municipality_id]);
 
-  // =========================================================================
-  // 🚀 LOCATIONIQ + "BOTTOM-UP RESCUE" REVERSE GEOCODING
-  // =========================================================================
+  // REVERSE GEOCODING
   useEffect(() => {
     const autoFillAddress = async () => {
-      if (!coordinates.lat || !coordinates.lon || municipalities.length === 0)
+      if (
+        !coordinates.lat ||
+        !coordinates.lon ||
+        coordinates.lat === "Fetching..." ||
+        municipalities.length === 0
+      )
         return;
 
       try {
-        // ⚠️ KEEP YOUR LOCATIONIQ TOKEN HERE
         const LOCATION_IQ_TOKEN = import.meta.env.VITE_LOCATIONIQ_TOKEN;
 
         const res = await fetch(
@@ -239,13 +279,11 @@ function ReportTab({ isActive }) {
           let matchedMunId = formData.municipality_id;
           let matchedBrgyId = formData.barangay_id;
 
-          // 1. Try Top-Down Match (Find Municipality first)
           const munMatch = municipalities.find((m) =>
             addressValues.some((val) => val.includes(m.name.toLowerCase())),
           );
           if (munMatch) matchedMunId = munMatch.id.toString();
 
-          // 2. Try to find Barangay
           if (matchedMunId) {
             const { data: bData } = await supabase
               .from("barangays")
@@ -258,7 +296,6 @@ function ReportTab({ isActive }) {
               if (brgyMatch) matchedBrgyId = brgyMatch.id.toString();
             }
           } else {
-            // 🚨 BOTTOM-UP RESCUE
             const { data: allBrgys } = await supabase
               .from("barangays")
               .select("id, name, municipality_id");
@@ -277,7 +314,6 @@ function ReportTab({ isActive }) {
             }
           }
 
-          // 3. Auto-Fill Purok / Sitio (Moved from Landmark)
           const { road, amenity, neighbourhood, suburb } = data.address;
           const suggestedPurok =
             road || neighbourhood || suburb || amenity || "";
@@ -286,7 +322,7 @@ function ReportTab({ isActive }) {
             ...prev,
             municipality_id: matchedMunId || prev.municipality_id,
             barangay_id: matchedBrgyId || prev.barangay_id,
-            purok_sitio: prev.purok_sitio || suggestedPurok, // Redirected the auto-fill to this field
+            purok_sitio: prev.purok_sitio || suggestedPurok,
           }));
         }
       } catch (error) {
@@ -296,7 +332,6 @@ function ReportTab({ isActive }) {
 
     autoFillAddress();
   }, [coordinates.lat, coordinates.lon, municipalities]);
-  // =========================================================================
 
   useEffect(() => {
     const navBar = document.querySelector(".bottom-nav-wrapper");
@@ -322,6 +357,10 @@ function ReportTab({ isActive }) {
   const capture = useCallback(() => {
     const imageSrc = webcamRef.current.getScreenshot();
     setImagePreview(imageSrc);
+    setIsCameraOpen(false);
+    setCoordinates({ lat: "Fetching...", lon: "Fetching..." });
+    setError("");
+
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -329,18 +368,16 @@ function ReportTab({ isActive }) {
             lat: position.coords.latitude.toFixed(6),
             lon: position.coords.longitude.toFixed(6),
           });
-          setError("");
-          setIsCameraOpen(false);
         },
         (err) => {
-          setError("Location access denied. Please enable GPS.");
-          setIsCameraOpen(false);
+          setError("Location access denied or failed. Please enable GPS.");
+          setCoordinates({ lat: "", lon: "" });
         },
         { enableHighAccuracy: true, timeout: 10000 },
       );
     } else {
       setError("Geolocation is not supported by this device.");
-      setIsCameraOpen(false);
+      setCoordinates({ lat: "", lon: "" });
     }
   }, [webcamRef]);
 
@@ -354,9 +391,17 @@ function ReportTab({ isActive }) {
   };
 
   const handleSubmitReport = async () => {
+    if (verificationStatus !== "approved") {
+      return setError("Only verified accounts can submit reports.");
+    }
+
     if (!imagePreview) return setError("Please capture a photo of the issue.");
-    if (!coordinates.lat || !coordinates.lon)
-      return setError("Location coordinates are required.");
+    if (
+      !coordinates.lat ||
+      !coordinates.lon ||
+      coordinates.lat === "Fetching..."
+    )
+      return setError("Please wait for location coordinates to load.");
     if (!formData.report_type_id)
       return setError("Please select a Report Type.");
     if (!formData.municipality_id)
@@ -429,7 +474,12 @@ function ReportTab({ isActive }) {
   };
 
   useEffect(() => {
-    if (!isActive || !coordinates.lat || !coordinates.lon) {
+    if (
+      !isActive ||
+      !coordinates.lat ||
+      !coordinates.lon ||
+      coordinates.lat === "Fetching..."
+    ) {
       if (mapRef.current) {
         mapRef.current.remove();
         mapRef.current = null;
@@ -464,6 +514,135 @@ function ReportTab({ isActive }) {
     }, 100);
   }, [coordinates, isActive]);
 
+  // --- 1. LOADING STATE ---
+  if (verificationStatus === "loading") {
+    return (
+      <div
+        className="bg-navy-tab"
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          color: "#ffffff",
+          fontWeight: "bold",
+        }}
+      >
+        Checking account status...
+      </div>
+    );
+  }
+
+  // --- 2. UNVERIFIED / PENDING / REJECTED SCREEN ---
+  if (verificationStatus !== "approved") {
+    const isRejected = verificationStatus === "rejected";
+
+    return (
+      <div
+        className="bg-navy-tab"
+        style={{
+          padding: "40px 20px",
+          minHeight: "100vh",
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: "#ffffff",
+            borderRadius: "24px",
+            padding: "35px 25px",
+            width: "100%",
+            maxWidth: "400px",
+            boxSizing: "border-box",
+            textAlign: "center",
+            boxShadow: "0 15px 30px rgba(0,0,0,0.2)",
+            animation: "contentFade 0.3s ease-out",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: isRejected ? "#fee2e2" : "#fef3c7",
+              width: "80px",
+              height: "80px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 20px auto",
+            }}
+          >
+            {isRejected ? (
+              <ShieldAlert size={48} color="#dc2626" />
+            ) : (
+              <Clock size={48} color="#d97706" />
+            )}
+          </div>
+
+          <h2
+            style={{
+              color: "#1e293b",
+              fontWeight: "900",
+              margin: "0 0 12px 0",
+              fontSize: "1.35rem",
+            }}
+          >
+            {isRejected ? "Verification Rejected" : "Account Pending Approval"}
+          </h2>
+
+          <p
+            style={{
+              color: "#475569",
+              fontSize: "0.88rem",
+              lineHeight: "1.6",
+              margin: "0 0 25px 0",
+              textAlign: "justify",
+            }}
+          >
+            {isRejected
+              ? "Your submitted verification details or eKYC photos were not approved by administrators. Please contact support or update your profile to re-verify."
+              : "Your account details and eKYC photos are currently under review by ISELCO-1 administrators. You will be able to report power outages and maintenance issues once your account is verified."}
+          </p>
+
+          <div
+            style={{
+              backgroundColor: isRejected ? "#fef2f2" : "#fffbe1",
+              border: `1px solid ${isRejected ? "#fca5a5" : "#fde047"}`,
+              borderRadius: "14px",
+              padding: "12px 15px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "0.82rem",
+                color: "#334155",
+                fontWeight: "bold",
+              }}
+            >
+              Account Status:{" "}
+              <strong
+                style={{
+                  color: isRejected ? "#dc2626" : "#d97706",
+                  textTransform: "uppercase",
+                }}
+              >
+                {verificationStatus}
+              </strong>
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- 3. APPROVED RESIDENT (FULL REPORT TAB) ---
   return (
     <div className="bg-navy-tab">
       {showSuccessModal &&
@@ -542,7 +721,7 @@ function ReportTab({ isActive }) {
             )}
           </div>
 
-          {coordinates.lat && (
+          {coordinates.lat && coordinates.lat !== "Fetching..." && (
             <div
               ref={mapContainerRef}
               className="map-preview-box report-map-mb"
@@ -603,25 +782,30 @@ function ReportTab({ isActive }) {
           )}
 
           <div className="report-inputs">
-            {/* 1. Longitude */}
             <input
               type="text"
               className="rounded-input"
               placeholder={t.longitude}
               value={coordinates.lon}
+              style={{
+                color:
+                  coordinates.lon === "Fetching..." ? "#94a3b8" : "inherit",
+              }}
               readOnly
             />
 
-            {/* 2. Latitude */}
             <input
               type="text"
               className="rounded-input"
               placeholder={t.latitude}
               value={coordinates.lat}
+              style={{
+                color:
+                  coordinates.lat === "Fetching..." ? "#94a3b8" : "inherit",
+              }}
               readOnly
             />
 
-            {/* 3. Municipality */}
             <SearchableDropdown
               name="municipality_id"
               options={municipalities}
@@ -630,7 +814,6 @@ function ReportTab({ isActive }) {
               placeholder={t.incidentMun}
             />
 
-            {/* 4. Barangay */}
             <SearchableDropdown
               name="barangay_id"
               options={barangays}
@@ -644,7 +827,6 @@ function ReportTab({ isActive }) {
               disabled={!formData.municipality_id}
             />
 
-            {/* 5. Purok / Sitio (Auto-Filled) */}
             <input
               type="text"
               name="purok_sitio"
@@ -654,7 +836,6 @@ function ReportTab({ isActive }) {
               onChange={handleInputChange}
             />
 
-            {/* 6. Report Type */}
             <SearchableDropdown
               name="report_type_id"
               options={reportTypes}
@@ -663,7 +844,6 @@ function ReportTab({ isActive }) {
               placeholder={t.reportType}
             />
 
-            {/* 7. Landmark (Left blank on purpose for manual entry) */}
             <input
               type="text"
               name="landmark"
@@ -673,7 +853,6 @@ function ReportTab({ isActive }) {
               onChange={handleInputChange}
             />
 
-            {/* 8. Description */}
             <input
               type="text"
               name="description"
@@ -687,7 +866,7 @@ function ReportTab({ isActive }) {
           <button
             className="submit-report-btn"
             onClick={handleSubmitReport}
-            disabled={isSubmitting}
+            disabled={isSubmitting || coordinates.lat === "Fetching..."}
           >
             {isSubmitting ? t.submitting : t.submit}
           </button>
