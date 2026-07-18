@@ -4,6 +4,30 @@ import LinemanReportDetail from "./LinemanReportDetail";
 import { CheckCircle, ChevronLeft } from "lucide-react";
 import { translations } from "../components/translations";
 
+// Define the priority weights for sorting text levels
+const priorityWeight = {
+  Critical: 4,
+  High: 3,
+  Normal: 2,
+  Low: 1,
+};
+
+// Helper function to assign colors based on priority
+const getPriorityColor = (level) => {
+  switch (level?.toUpperCase()) {
+    case "CRITICAL":
+      return "#ef4444"; // Red
+    case "HIGH":
+      return "#f97316"; // Orange
+    case "NORMAL":
+      return "#3b82f6"; // Light Blue
+    case "LOW":
+      return "#10b981"; // Green
+    default:
+      return "#1b0b8c"; // Default Navy
+  }
+};
+
 function LinemanReportTab() {
   const currentLang = localStorage.getItem("appLanguage") || "English";
   const t = translations[currentLang];
@@ -39,22 +63,37 @@ function LinemanReportTab() {
       if (userData) setLinemanName(userData.first_name);
 
       const linemanBranchId = userData?.branch_id;
+
       const { data: assignmentsData, error: assignError } = await supabase
         .from("assignments")
         .select(
-          `reports ( id, description, landmark, latitude, longitude, photo_url, purok_sitio, barangays ( name ), municipalities ( name ), report_types ( name ), report_statuses ( id, name ) )`,
+          `reports ( id, description, landmark, latitude, longitude, photo_url, purok_sitio, created_at, barangays ( name ), municipalities ( name ), report_types ( name, priority_level ), report_statuses ( id, name ) )`,
         )
         .eq("lineman_id", user.id);
+
       if (assignmentsData && !assignError) {
-        setAssignedReports(
-          assignmentsData.map((a) => a.reports).filter(Boolean),
-        );
+        const extractedReports = assignmentsData
+          .map((a) => a.reports)
+          .filter(Boolean);
+
+        const sortedAssignedReports = extractedReports.sort((a, b) => {
+          const weightA = priorityWeight[a.report_types?.priority_level] || 0;
+          const weightB = priorityWeight[b.report_types?.priority_level] || 0;
+
+          if (weightB !== weightA) {
+            return weightB - weightA;
+          }
+
+          return new Date(b.created_at) - new Date(a.created_at);
+        });
+
+        setAssignedReports(sortedAssignedReports);
       }
 
       let generalReportsQuery = supabase
         .from("reports")
         .select(
-          `id, landmark, purok_sitio, barangays ( name ), municipalities ( name ), report_types ( name )`,
+          `id, landmark, purok_sitio, barangays ( name ), municipalities ( name ), report_types ( name, priority_level )`,
         )
         .order("created_at", { ascending: false })
         .limit(5);
@@ -92,15 +131,15 @@ function LinemanReportTab() {
       .filter(Boolean)
       .join(", ");
   };
-  const pendingReportsCount = assignedReports.filter(
-    (r) => r.report_statuses?.name?.toUpperCase() === "PENDING",
-  ).length;
+
   const resolvedReports = assignedReports.filter(
     (r) => r.report_statuses?.name?.toUpperCase() === "RESOLVED",
   );
+
   const activeAssignedReports = assignedReports.filter(
     (r) => r.report_statuses?.name?.toUpperCase() !== "RESOLVED",
   );
+
   const filteredActiveReports = activeAssignedReports.filter((r) => {
     if (filterStatus === "ALL") return true;
     return r.report_statuses?.name?.toUpperCase() === filterStatus;
@@ -198,9 +237,25 @@ function LinemanReportTab() {
                   alignItems: "center",
                   gap: "10px",
                   margin: 0,
+                  borderLeft: `6px solid ${getPriorityColor(report.report_types?.priority_level)}`,
                 }}
               >
                 <div style={{ flex: 1 }}>
+                  <span
+                    style={{
+                      fontSize: "0.65rem",
+                      fontWeight: "900",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      color: getPriorityColor(
+                        report.report_types?.priority_level,
+                      ),
+                      display: "block",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {report.report_types?.priority_level || "Normal"} Priority
+                  </span>
                   <h3 className="lineman-report-title">
                     {report.report_types?.name}
                   </h3>
@@ -276,6 +331,8 @@ function LinemanReportTab() {
           </p>
           <h3 className="l-rt-stat-num-blue">{totalSystemReports}</h3>
         </div>
+
+        {/* Updated Yellow Stat Box */}
         <div
           className="l-rt-stat-box-yellow"
           style={{
@@ -285,12 +342,17 @@ function LinemanReportTab() {
             justifyContent: "space-between",
           }}
         >
-          <p className="l-rt-stat-title-yellow">
-            {t.pendingAssignedReport.split(" ")[0]}
+          <p
+            className="l-rt-stat-title-yellow"
+            style={{ textTransform: "uppercase" }}
+          >
+            NUMBER OF
             <br />
-            {t.assigned} {t.reports}
+            ASSIGNED REPORTS
           </p>
-          <h3 className="l-rt-stat-num-yellow">{pendingReportsCount}</h3>
+          <h3 className="l-rt-stat-num-yellow">
+            {activeAssignedReports.length}
+          </h3>
         </div>
       </div>
 
@@ -431,9 +493,25 @@ function LinemanReportTab() {
                   alignItems: "center",
                   gap: "10px",
                   margin: 0,
+                  borderLeft: `6px solid ${getPriorityColor(report.report_types?.priority_level)}`,
                 }}
               >
                 <div style={{ flex: 1 }}>
+                  <span
+                    style={{
+                      fontSize: "0.65rem",
+                      fontWeight: "900",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      color: getPriorityColor(
+                        report.report_types?.priority_level,
+                      ),
+                      display: "block",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {report.report_types?.priority_level || "Normal"} Priority
+                  </span>
                   <h3 className="lineman-report-title">
                     {report.report_types?.name}
                   </h3>
@@ -488,8 +566,26 @@ function LinemanReportTab() {
             <div
               key={`general-${report.id}`}
               className="lineman-report-card"
-              style={{ width: "100%", boxSizing: "border-box", margin: 0 }}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                margin: 0,
+                borderLeft: `6px solid ${getPriorityColor(report.report_types?.priority_level)}`,
+              }}
             >
+              <span
+                style={{
+                  fontSize: "0.65rem",
+                  fontWeight: "900",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  color: getPriorityColor(report.report_types?.priority_level),
+                  display: "block",
+                  marginBottom: "4px",
+                }}
+              >
+                {report.report_types?.priority_level || "Normal"} Priority
+              </span>
               <h3 className="lineman-report-title">
                 {report.report_types?.name}
               </h3>
