@@ -1,5 +1,5 @@
 /* =========================================
-   CORE VARIABLES & APP WRAPPER (Moved from index.css)
+   CORE VARIABLES & APP WRAPPER 
    ========================================= */
 :root {
   --primary-navy: #1b0b8c;
@@ -33,7 +33,7 @@ body {
 }
 
 /* =========================================
-   UTILITIES & ANIMATIONS (Moved from index.css)
+   UTILITIES & ANIMATIONS 
    ========================================= */
 .text-yellow {
   color: var(--accent-yellow) !important;
@@ -90,7 +90,7 @@ body {
 }
 
 /* =========================================
-   UNIVERSAL ALERTS & MODALS (Moved from index.css)
+   UNIVERSAL ALERTS & MODALS 
    ========================================= */
 .error-alert,
 .success-alert {
@@ -174,7 +174,7 @@ body {
 }
 
 /* =========================================
-   AUTHENTICATION SCREENS (Moved from index.css)
+   AUTHENTICATION SCREENS 
    ========================================= */
 .auth-layout {
   display: flex;
@@ -184,7 +184,6 @@ body {
   overflow: hidden;
   background-color: #f8fafc;
 }
-
 .auth-top-section {
   flex: 0 0 35vh;
   display: flex;
@@ -192,7 +191,6 @@ body {
   align-items: center;
   position: relative;
 }
-
 .auth-bg-photo {
   background-image: url("./assets/BG.png");
   background-size: cover;
@@ -201,7 +199,6 @@ body {
 .auth-bg-white {
   background-color: var(--pure-white);
 }
-
 .auth-logo-img {
   width: 75%;
   max-width: 250px;
@@ -210,7 +207,6 @@ body {
   z-index: 2;
   filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.15));
 }
-
 .auth-back-btn {
   position: absolute;
   top: 30px;
@@ -227,7 +223,6 @@ body {
   z-index: 10;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
-
 .auth-bottom-section {
   flex: 1;
   overflow-y: auto;
@@ -241,7 +236,6 @@ body {
   z-index: 3;
   position: relative;
 }
-
 .auth-form-title {
   color: var(--pure-white);
   font-size: 1.4rem;
@@ -257,7 +251,6 @@ body {
   margin: 0 auto 30px auto;
   border-radius: 10px;
 }
-
 .auth-form-container {
   display: flex;
   flex-direction: column;
@@ -276,7 +269,6 @@ body {
   font-weight: 700;
   margin-left: 15px;
 }
-
 .auth-input {
   width: 100%;
   padding: 14px 20px;
@@ -318,7 +310,6 @@ select.auth-input {
   padding: 0;
   display: flex;
 }
-
 .auth-submit-btn {
   width: 100%;
   padding: 16px;
@@ -337,7 +328,6 @@ select.auth-input {
 .auth-submit-btn:active {
   transform: scale(0.97);
 }
-
 .auth-footer-link {
   text-align: center;
   margin-top: 30px;
@@ -383,9 +373,8 @@ select.auth-input {
 }
 
 /* =========================================
-   RESIDENT PORTAL MAIN UI (Existing Resident.css)
+   RESIDENT PORTAL MAIN UI
    ========================================= */
-
 .dashboard-layout {
   display: flex;
   flex-direction: column;
@@ -403,7 +392,7 @@ select.auth-input {
   animation: fadeIn 0.3s ease-in-out;
 }
 
-/* GROUNDED WHITE NAVIGATION BAR (From Mockup) */
+/* GROUNDED WHITE NAVIGATION BAR */
 .bottom-nav-wrapper {
   position: fixed;
   bottom: 0;
@@ -411,7 +400,6 @@ select.auth-input {
   width: 100%;
   z-index: 1000;
 }
-
 .pill-nav {
   display: flex;
   justify-content: space-around;
@@ -443,13 +431,14 @@ select.auth-input {
   stroke-width: 2.5px;
 }
 
-/* DEEP NAVY TABS (Report & Notification) */
+/* DEEP NAVY TABS (Report Tab Only Now) */
 .bg-navy-tab {
   background-color: var(--primary-navy) !important;
-  min-height: calc(100vh - 80px);
+  /* CHANGED: Swapped calc for 100% and fixed bottom padding */
+  min-height: 100%;
   border-bottom-left-radius: 50px;
   border-bottom-right-radius: 50px;
-  padding: 40px 20px 80px 20px;
+  padding: 40px 20px 120px 20px;
   box-shadow: 0 10px 30px rgba(27, 11, 140, 0.2);
 }
 
@@ -503,11 +492,7 @@ select.auth-input {
   letter-spacing: -0.5px;
 }
 
-/* =========================================
-   POWER ADVISORY SECTION (UPDATED)
-   ========================================= */
-
-/* New Yellow Date Pill */
+/* POWER ADVISORY SECTION */
 .advisory-date-pill {
   border-radius: 15px;
   padding: 12px 20px;
@@ -518,27 +503,21 @@ select.auth-input {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
   letter-spacing: 1px;
 }
-
-/* Connected Navy Grid */
 .advisory-grid {
   display: flex;
   border-radius: 15px;
   overflow: hidden;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
 }
-
 .advisory-col-barangay {
   flex: 1.2;
   padding: 20px 10px;
 }
-
 .advisory-col-time {
   flex: 1;
   padding: 20px 10px;
-  border-left: 2px solid var(--accent-yellow); /* The vertical yellow line */
+  border-left: 2px solid var(--accent-yellow);
 }
-
-/* Typography for the Advisory Details */
 .advisory-col-header {
   text-align: center;
   font-size: 0.95rem;
@@ -547,7 +526,6 @@ select.auth-input {
   letter-spacing: 0.5px;
   color: var(--pure-white);
 }
-
 .advisory-item-text {
   margin: 0 0 10px 0;
   font-size: 0.85rem;
@@ -556,6 +534,8 @@ select.auth-input {
   line-height: 1.4;
   color: var(--pure-white);
 }
+
+/* CARDS */
 .report-card {
   background-color: var(--primary-navy) !important;
   border-radius: 20px;
@@ -599,7 +579,7 @@ select.auth-input {
   font-size: 0.8rem;
 }
 
-/* REPORT TAB */
+/* REPORT TAB STYLES */
 .report-form-container {
   display: flex;
   flex-direction: column;
@@ -613,7 +593,6 @@ select.auth-input {
   font-weight: 900;
   letter-spacing: 1px;
 }
-
 .photo-capture-box {
   background-color: #e2e8f0;
   border-radius: 25px;
@@ -659,6 +638,16 @@ select.auth-input {
   object-fit: cover;
   position: relative;
   z-index: 3;
+}
+
+/* FIXED: Missing Map Box Class Added */
+.map-preview-box {
+  width: 100%;
+  height: 200px;
+  border-radius: 15px;
+  overflow: hidden;
+  margin-bottom: 15px;
+  border: 2px solid #cbd5e1;
 }
 
 .report-inputs {
@@ -957,7 +946,8 @@ select.auth-input {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  width: 100vw;
+  /* CHANGED: width 100vw causes horizontal scrollbar bugs */
+  width: 100%;
   background-color: #f8fafc;
   color: #1e293b;
   overflow: hidden;
@@ -1221,7 +1211,7 @@ select.auth-input {
 }
 
 /* =========================================
-   SETTINGS TAB - MOCKUP MATCH
+   SETTINGS TAB
    ========================================= */
 .settings-page {
   min-height: 100vh;
@@ -1385,14 +1375,13 @@ select.auth-input {
 @keyframes fadeSlideIn {
   0% {
     opacity: 0;
-    transform: translateY(12px); /* Starts slightly lower */
+    transform: translateY(12px);
   }
   100% {
     opacity: 1;
-    transform: translateY(0); /* Slides into place */
+    transform: translateY(0);
   }
 }
-
 .page-transition {
   animation: fadeSlideIn 0.3s ease-out forwards;
   width: 100%;

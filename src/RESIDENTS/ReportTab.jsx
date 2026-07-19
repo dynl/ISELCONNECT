@@ -148,7 +148,6 @@ function ReportTab({ isActive }) {
   const currentLang = localStorage.getItem("appLanguage") || "English";
   const t = translations[currentLang];
 
-  // Verification State
   const [verificationStatus, setVerificationStatus] = useState("loading");
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -176,7 +175,6 @@ function ReportTab({ isActive }) {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
 
-  // --- 🔒 CHECK USER VERIFICATION STATUS ---
   useEffect(() => {
     const checkVerificationStatus = async () => {
       try {
@@ -252,7 +250,6 @@ function ReportTab({ isActive }) {
     fetchBarangays();
   }, [formData.municipality_id]);
 
-  // REVERSE GEOCODING
   useEffect(() => {
     const autoFillAddress = async () => {
       if (
@@ -514,7 +511,6 @@ function ReportTab({ isActive }) {
     }, 100);
   }, [coordinates, isActive]);
 
-  // --- 1. LOADING STATE ---
   if (verificationStatus === "loading") {
     return (
       <div
@@ -526,6 +522,7 @@ function ReportTab({ isActive }) {
           minHeight: "100vh",
           color: "#ffffff",
           fontWeight: "bold",
+          overscrollBehavior: "none",
         }}
       >
         Checking account status...
@@ -533,7 +530,6 @@ function ReportTab({ isActive }) {
     );
   }
 
-  // --- 2. UNVERIFIED / PENDING / REJECTED SCREEN ---
   if (verificationStatus !== "approved") {
     const isRejected = verificationStatus === "rejected";
 
@@ -548,6 +544,7 @@ function ReportTab({ isActive }) {
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
+          overscrollBehavior: "none",
         }}
       >
         <div
@@ -642,9 +639,8 @@ function ReportTab({ isActive }) {
     );
   }
 
-  // --- 3. APPROVED RESIDENT (FULL REPORT TAB) ---
   return (
-    <div className="bg-navy-tab">
+    <div className="bg-navy-tab" style={{ overscrollBehavior: "none" }}>
       {showSuccessModal &&
         createPortal(
           <div

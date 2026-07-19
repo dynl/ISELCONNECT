@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Bell, AlertTriangle } from "lucide-react";
 import { translations } from "../components/translations";
-import LoadingScreen from "../components/LoadingScreen"; // Custom Loading
+import LoadingScreen from "../components/LoadingScreen";
 
 function NotificationTab() {
   const [notifications, setNotifications] = useState([]);
@@ -93,67 +93,128 @@ function NotificationTab() {
   };
 
   return (
-    <div className="bg-navy-tab">
-      <h2 className="notification-title">{t.notificationTitle}</h2>
+    <div
+      style={{
+        height: "100%",
+        overflowY: "auto",
+        overscrollBehavior: "none",
+        backgroundColor: "#f8fafc",
+        padding: "16px 16px 120px 16px",
+      }}
+    >
+      {/* STICKY FROSTED HEADER */}
+      <div
+        style={{
+          position: "sticky",
+          top: 0,
+          margin: "-16px -16px 20px -16px",
+          padding: "22px 16px 18px 16px",
+          background: "rgba(248, 250, 252, 0.85)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          zIndex: 50,
+          borderBottom: "1px solid rgba(0,0,0,0.05)",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+        }}
+      >
+        <Bell size={26} color="#1b0b8c" />
+        <h2
+          style={{
+            margin: 0,
+            fontSize: "1.3rem",
+            fontWeight: "900",
+            letterSpacing: "1px",
+            textTransform: "uppercase",
+            color: "#1b0b8c",
+          }}
+        >
+          {t.notificationTitle || "Notifications"}
+        </h2>
+      </div>
 
-      <div className="notification-list">
+      <div>
         {loading ? (
           <LoadingScreen message={t.loadingNotifs} />
         ) : notifications.length === 0 ? (
-          <div className="notif-empty-container">
+          <div
+            style={{
+              textAlign: "center",
+              padding: "60px 20px",
+              color: "#94a3b8",
+            }}
+          >
             <Bell
               size={48}
               strokeWidth={1.5}
-              color="#94a3b8"
-              style={{ margin: "0 auto 10px auto" }}
+              style={{ margin: "0 auto 15px auto" }}
             />
-            <p>{t.noNotifs}</p>
+            <p style={{ fontSize: "1.1rem", fontWeight: "600" }}>
+              {t.noNotifs}
+            </p>
           </div>
         ) : (
           notifications.map((notif) => (
             <div
               key={notif.id}
-              className={`notification-card ${notif.is_read ? "notif-card-read" : "notif-card-unread"}`}
-              style={
-                notif.is_advisory
-                  ? {
-                      borderLeft: "5px solid #facc15",
-                      backgroundColor: "#fefce8",
-                    }
-                  : {}
-              }
+              style={{
+                backgroundColor: notif.is_read ? "#ffffff" : "#f1f5f9",
+                borderRadius: "16px",
+                padding: "20px",
+                marginBottom: "12px",
+                boxShadow: "0 4px 10px rgba(0,0,0,0.04)",
+                border: notif.is_advisory
+                  ? "2px solid #fde047"
+                  : notif.is_read
+                    ? "1px solid #e2e8f0"
+                    : "2px solid #cbd5e1",
+              }}
             >
               <div
-                className="notif-header"
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginBottom: "8px",
+                }}
               >
                 {notif.is_advisory && (
-                  <AlertTriangle size={18} color="#ca8a04" />
+                  <AlertTriangle size={18} color="#b45309" />
                 )}
                 <h3
-                  className="notif-title"
-                  style={
-                    notif.is_advisory
-                      ? { color: "#ca8a04", fontWeight: "900" }
-                      : {}
-                  }
+                  style={{
+                    margin: 0,
+                    fontSize: "1rem",
+                    fontWeight: "900",
+                    color: notif.is_advisory ? "#b45309" : "#1e293b",
+                  }}
                 >
                   {notif.title}
                 </h3>
-                <span className="notif-time" style={{ marginLeft: "auto" }}>
-                  {formatDateTime(notif.created_at)}
-                </span>
               </div>
               <p
                 style={{
-                  color: "#334155",
-                  fontSize: "0.9rem",
-                  margin: "8px 0 0 0",
-                  lineHeight: "1.4",
+                  color: "#475569",
+                  fontSize: "0.95rem",
+                  margin: "0 0 12px 0",
+                  lineHeight: "1.5",
+                  fontWeight: "500",
                 }}
               >
                 {notif.message}
               </p>
+              <div style={{ textAlign: "right" }}>
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#94a3b8",
+                    fontWeight: "600",
+                  }}
+                >
+                  {formatDateTime(notif.created_at)}
+                </span>
+              </div>
             </div>
           ))
         )}

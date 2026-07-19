@@ -6,6 +6,7 @@ import ReportTab from "./ReportTab";
 import NotificationTab from "./NotificationTab";
 import ProfileTab from "./ProfileTab";
 import { translations } from "../components/translations";
+import AreaAlertPopup from "../components/AreaAlertPopup";
 
 function ResidentDashboard({ session, onLogout }) {
   const [activeTab, setActiveTab] = useState("home");
@@ -20,6 +21,9 @@ function ResidentDashboard({ session, onLogout }) {
 
   return (
     <div className="dashboard-layout">
+      {/* 🚀 Our new Area Alert Popup runs here at the top level! */}
+      <AreaAlertPopup />
+
       <main
         key={activeTab}
         className="dashboard-main-content animate-tab-switch"

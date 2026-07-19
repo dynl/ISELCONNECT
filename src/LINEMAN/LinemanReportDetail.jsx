@@ -188,9 +188,6 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
     }, 100);
   }, [report, showMap]);
 
-  // =========================================================================
-  // 🚀 DYNAMIC LINEMAN MARKER & OSRM ROAD ROUTING
-  // =========================================================================
   useEffect(() => {
     if (!showMap || !linemanLocation || !report.latitude || !report.longitude)
       return;
@@ -210,7 +207,6 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
       const reportLat = parseFloat(report.latitude);
       const reportLon = parseFloat(report.longitude);
 
-      // 1. Draw or Update Lineman Marker
       const linemanIcon = L.divIcon({
         className: "live-tracker-icon",
         html: `<div style="background-color: #10b981; width: 26px; height: 26px; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 0 15px rgba(16, 185, 129, 0.8); display: flex; align-items: center; justify-content: center; font-size: 14px; animation: pulse-ring 2s infinite;">⚡</div>`,
@@ -227,7 +223,6 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
         linemanMarkerRef.current.setLatLng([linemanLat, linemanLon]);
       }
 
-      // 2. Fetch OSRM Road Routing Data
       try {
         const response = await fetch(
           `https://router.project-osrm.org/route/v1/driving/${linemanLon},${linemanLat};${reportLon},${reportLat}?overview=full&geometries=geojson`,
@@ -250,7 +245,6 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
           ];
         }
 
-        // 3. Draw or Update Navy Blue Direction Line
         if (!lineRef.current) {
           lineRef.current = L.polyline(routePoints, {
             color: "#1b0b8c",
@@ -783,7 +777,10 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
   }
 
   return (
-    <div className="detail-layout page-transition">
+    <div
+      className="detail-layout page-transition"
+      style={{ overscrollBehavior: "none" }}
+    >
       {showStatusAlert && (
         <div className="custom-alert-overlay">
           <div className="custom-alert-box">
@@ -854,19 +851,50 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
 
       <div
         className="detail-scrollable-content"
-        style={{ paddingBottom: "130px" }}
+        style={{ padding: "16px 16px 120px 16px" }}
       >
-        <div className="detail-header">
-          <button onClick={onBack} className="back-btn">
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            margin: "-16px -16px 20px -16px",
+            padding: "22px 16px 18px 16px",
+            background: "rgba(255, 255, 255, 0.92)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            zIndex: 50,
+            borderBottom: "1px solid rgba(0,0,0,0.05)",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <button
+            onClick={onBack}
+            className="back-btn"
+            style={{ flexShrink: 0 }}
+          >
             <ChevronLeft size={28} strokeWidth={3} />
           </button>
-          <h2>{report.report_types?.name || t.reportDetailsTitle}</h2>
+          <h2
+            className="text-navy"
+            style={{
+              margin: 0,
+              fontSize: "1.3rem",
+              fontWeight: "900",
+              letterSpacing: "1px",
+              textTransform: "uppercase",
+              lineHeight: 1.2,
+            }}
+          >
+            {report.report_types?.name || t.reportDetailsTitle}
+          </h2>
         </div>
 
         {(isResolved || isPendingVerification) && (
           <div
             style={{
-              margin: "15px 20px 10px 20px",
+              margin: "0 0 15px 0",
               padding: "16px",
               borderRadius: "15px",
               display: "flex",
@@ -1094,7 +1122,10 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
 
       <div
         className="status-action-bar"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom)",
+          touchAction: "none",
+        }}
       >
         <button
           className={`status-icon-btn btn-pending ${activeStatus === "PENDING" ? "active active-pending" : ""}`}

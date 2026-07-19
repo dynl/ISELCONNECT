@@ -52,27 +52,52 @@ function LinemanNotificationTab() {
   return (
     <div
       style={{
-        backgroundColor: "#1b0b8c",
-        minHeight: "100vh",
-        padding: "40px 20px 120px 20px",
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
         boxSizing: "border-box",
+        padding: "18px 16px",
+        background: "linear-gradient(180deg, #ffffff 0%, #f4f6ff 100%)",
+        minHeight: "100%",
       }}
     >
-      <h2
+      {/* STICKY HEADER */}
+      <div
         style={{
-          textAlign: "center",
-          margin: "0 0 30px 0",
-          fontSize: "2.2rem",
-          fontWeight: "900",
-          letterSpacing: "1px",
-          color: "#ffdf84",
-          textTransform: "uppercase",
+          position: "sticky",
+          top: 0,
+          margin: "-18px -16px 20px -16px",
+          padding: "22px 16px 18px 16px", // Added slightly more padding to accommodate the larger text
+          background: "rgba(255, 255, 255, 0.92)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          zIndex: 50,
+          borderBottom: "1px solid rgba(0,0,0,0.05)",
         }}
       >
-        {t.notificationTitle}
-      </h2>
+        <h2
+          className="text-navy"
+          style={{
+            margin: 0,
+            fontSize: "1.8rem", // Enlarged font size
+            fontWeight: "900",
+            letterSpacing: "1px", // Spread out slightly for a cleaner look
+            textTransform: "uppercase", // Forced uppercase
+          }}
+        >
+          {t.notificationTitle || "Notifications"}
+        </h2>
+      </div>
 
-      <div className="notification-list">
+      <div
+        className="notification-list"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+          width: "100%",
+        }}
+      >
         {loading ? (
           <LoadingScreen message={t.loadingNotifs} />
         ) : notifications.length === 0 ? (
@@ -82,7 +107,7 @@ function LinemanNotificationTab() {
               flexDirection: "column",
               alignItems: "center",
               marginTop: "40px",
-              color: "#cbd5e1",
+              color: "#64748b",
             }}
           >
             <Bell
@@ -91,7 +116,7 @@ function LinemanNotificationTab() {
               color="#cbd5e1"
               style={{ marginBottom: "10px" }}
             />
-            <p>{t.noNotifs}</p>
+            <p style={{ fontWeight: "bold" }}>{t.noNotifs}</p>
           </div>
         ) : (
           notifications.map((notif) => (
@@ -101,9 +126,12 @@ function LinemanNotificationTab() {
                 backgroundColor: "#ffffff",
                 borderRadius: "20px",
                 padding: "16px 20px",
-                marginBottom: "12px",
-                boxShadow: "0 4px 10px rgba(0,0,0,0.1)",
-                opacity: notif.is_read ? 0.85 : 1,
+                margin: 0,
+                boxShadow: "0 4px 10px rgba(27, 11, 140, 0.05)",
+                borderLeft: notif.is_read
+                  ? "6px solid #cbd5e1"
+                  : "6px solid #f5c400",
+                opacity: notif.is_read ? 0.75 : 1,
               }}
             >
               <div
@@ -119,7 +147,7 @@ function LinemanNotificationTab() {
                     margin: 0,
                     fontSize: "0.95rem",
                     fontWeight: "900",
-                    color: "#1e1b4b",
+                    color: "#1b0b8c",
                     textTransform: "uppercase",
                   }}
                 >
@@ -128,8 +156,8 @@ function LinemanNotificationTab() {
                 <span
                   style={{
                     fontSize: "0.75rem",
-                    color: "#94a3b8",
-                    fontWeight: "600",
+                    color: "#64748b",
+                    fontWeight: "700",
                     whiteSpace: "nowrap",
                     marginLeft: "10px",
                   }}
@@ -142,7 +170,8 @@ function LinemanNotificationTab() {
                   margin: 0,
                   fontSize: "0.85rem",
                   color: "#475569",
-                  lineHeight: "1.4",
+                  lineHeight: "1.5",
+                  fontWeight: "500",
                 }}
               >
                 {notif.message}

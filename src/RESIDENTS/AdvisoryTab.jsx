@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { translations } from "../components/translations";
-import LoadingScreen from "../components/LoadingScreen"; // Added custom loading
+import LoadingScreen from "../components/LoadingScreen";
+import { Zap } from "lucide-react";
 import "../Resident.css";
 
 function AdvisoryTab() {
@@ -66,133 +67,164 @@ function AdvisoryTab() {
   }, {});
 
   return (
-    <div className="home-tab">
+    <div
+      style={{
+        height: "100%",
+        overflowY: "auto",
+        overscrollBehavior: "none",
+        backgroundColor: "#f8fafc",
+        padding: "16px 16px 120px 16px",
+      }}
+    >
+      {/* STICKY FROSTED HEADER */}
       <div
-        className="home-section"
-        style={{ paddingTop: "20px", paddingBottom: "100px" }}
+        style={{
+          position: "sticky",
+          top: 0,
+          margin: "-16px -16px 20px -16px",
+          padding: "22px 16px 18px 16px",
+          background: "rgba(248, 250, 252, 0.85)",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          zIndex: 50,
+          borderBottom: "1px solid rgba(0,0,0,0.05)",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+        }}
       >
+        <Zap size={26} color="#facc15" fill="#facc15" />
         <h2
-          className="section-heading"
           style={{
+            margin: 0,
+            fontSize: "1.3rem",
+            fontWeight: "900",
+            letterSpacing: "1px",
             textTransform: "uppercase",
-            textAlign: "center",
-            marginBottom: "25px",
+            color: "#1b0b8c",
           }}
         >
-          <span className="text-yellow" style={{ fontWeight: "900" }}>
-            {t.powerYellow}
-          </span>{" "}
-          <span className="text-navy" style={{ fontWeight: "900" }}>
-            {t.advisoryNavy}
-          </span>
+          {t.powerYellow} {t.advisoryNavy}
         </h2>
+      </div>
 
-        {loading ? (
-          <LoadingScreen message={t.loadingAdvisories} />
-        ) : Object.keys(groupedAdvisories).length === 0 ? (
-          <p
-            className="home-empty-text"
-            style={{ textAlign: "center", color: "#64748b" }}
-          >
+      {loading ? (
+        <LoadingScreen message={t.loadingAdvisories} />
+      ) : Object.keys(groupedAdvisories).length === 0 ? (
+        <div style={{ textAlign: "center", padding: "40px 20px" }}>
+          <p style={{ color: "#64748b", fontSize: "1rem", fontWeight: "600" }}>
             {t.noAdvisories}
           </p>
-        ) : (
-          Object.keys(groupedAdvisories).map((groupKey) => {
-            const [dateKey, timeKey] = groupKey.split("|");
-            return (
-              <div key={groupKey} style={{ marginBottom: "30px" }}>
-                <div
+        </div>
+      ) : (
+        Object.keys(groupedAdvisories).map((groupKey) => {
+          const [dateKey, timeKey] = groupKey.split("|");
+          return (
+            <div key={groupKey} style={{ marginBottom: "30px" }}>
+              <div
+                style={{
+                  backgroundColor: "#ffffff",
+                  borderLeft: "6px solid #facc15",
+                  borderRadius: "15px",
+                  padding: "16px",
+                  marginBottom: "15px",
+                  boxShadow: "0 4px 10px rgba(0,0,0,0.03)",
+                }}
+              >
+                <h3
                   style={{
-                    backgroundColor: "#fde047",
-                    borderRadius: "20px",
-                    padding: "15px",
-                    textAlign: "center",
+                    margin: 0,
+                    fontSize: "1.1rem",
+                    fontWeight: "900",
                     color: "#1b0b8c",
-                    marginBottom: "15px",
-                    boxShadow: "0 4px 10px rgba(0,0,0,0.05)",
+                    letterSpacing: "0.5px",
                   }}
                 >
-                  <h3
-                    style={{
-                      margin: 0,
-                      fontSize: "1.4rem",
-                      fontWeight: "900",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    {dateKey}
-                  </h3>
-                  <p
-                    style={{
-                      margin: "2px 0 0 0",
-                      fontSize: "0.95rem",
-                      fontWeight: "700",
-                    }}
-                  >
-                    {timeKey}
-                  </p>
-                </div>
-                {groupedAdvisories[groupKey].map((adv) => {
-                  const barangays = adv.affected_areas
-                    ? adv.affected_areas.split(",").map((b) => b.trim())
-                    : [];
-                  const municipalityName =
-                    adv.municipalities?.name || "MUNICIPALITY";
+                  {dateKey}
+                </h3>
+                <p
+                  style={{
+                    margin: "4px 0 0 0",
+                    fontSize: "0.95rem",
+                    fontWeight: "700",
+                    color: "#64748b",
+                  }}
+                >
+                  {timeKey}
+                </p>
+              </div>
+              {groupedAdvisories[groupKey].map((adv) => {
+                const barangays = adv.affected_areas
+                  ? adv.affected_areas.split(",").map((b) => b.trim())
+                  : [];
+                const municipalityName =
+                  adv.municipalities?.name || "MUNICIPALITY";
 
-                  return (
-                    <div
-                      key={adv.id}
+                return (
+                  <div
+                    key={adv.id}
+                    style={{
+                      backgroundColor: "#ffffff",
+                      borderRadius: "20px",
+                      padding: "20px",
+                      marginBottom: "12px",
+                      boxShadow: "0 6px 15px rgba(0,0,0,0.05)",
+                      border: "1px solid #e2e8f0",
+                    }}
+                  >
+                    <h4
                       style={{
-                        backgroundColor: "#1b0b8c",
-                        borderRadius: "20px",
-                        padding: "20px",
-                        color: "#ffffff",
-                        marginBottom: "12px",
-                        boxShadow: "0 6px 15px rgba(27, 11, 140, 0.15)",
+                        margin: "0 0 15px 0",
+                        fontSize: "1.1rem",
+                        fontWeight: "900",
+                        textTransform: "uppercase",
+                        letterSpacing: "1px",
+                        color: "#1b0b8c",
+                        borderBottom: "2px solid #f1f5f9",
+                        paddingBottom: "10px",
                       }}
                     >
-                      <h4
-                        style={{
-                          margin: "0 0 15px 0",
-                          textAlign: "center",
-                          fontSize: "1.1rem",
-                          fontWeight: "900",
-                          textTransform: "uppercase",
-                          letterSpacing: "1px",
-                        }}
-                      >
-                        {municipalityName}
-                      </h4>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 1fr",
-                          rowGap: "8px",
-                          columnGap: "15px",
-                          textAlign: "center",
-                        }}
-                      >
-                        {barangays.map((brgy, idx) => (
-                          <span
-                            key={idx}
+                      {municipalityName}
+                    </h4>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        rowGap: "10px",
+                        columnGap: "15px",
+                      }}
+                    >
+                      {barangays.map((brgy, idx) => (
+                        <span
+                          key={idx}
+                          style={{
+                            fontSize: "0.95rem",
+                            color: "#334155",
+                            fontWeight: "600",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          <div
                             style={{
-                              fontSize: "0.9rem",
-                              color: "#e2e8f0",
-                              fontWeight: "500",
+                              width: "6px",
+                              height: "6px",
+                              backgroundColor: "#facc15",
+                              borderRadius: "50%",
                             }}
-                          >
-                            {brgy}
-                          </span>
-                        ))}
-                      </div>
+                          ></div>
+                          {brgy}
+                        </span>
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
-            );
-          })
-        )}
-      </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }

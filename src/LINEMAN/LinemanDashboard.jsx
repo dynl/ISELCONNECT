@@ -1,27 +1,30 @@
 import { useState } from "react";
-import { translations } from "../components/translations";
 import ReportTab from "./LinemanReportTab";
+import HistoryTab from "./LinemanHistoryTab"; // <-- New Combined Tab
 import NotificationTab from "./LinemanNotificationTab";
 import ProfileTab from "./LinemanProfileTab";
 import "../Lineman.css";
 
-import { List, Bell, User } from "lucide-react";
+import { List, Archive, Bell, User } from "lucide-react";
 
 function LinemanDashboard() {
   const [activeTab, setActiveTab] = useState("report");
 
   return (
     <div className="lineman-dashboard-layout">
-      {/* The key={activeTab} and animate-tab-switch force the animation 
-        to restart every time you change a tab! 
-      */}
-      <div key={activeTab} className="lineman-tab-content animate-tab-switch">
+      {/* Middle Wrapper (handles the scrolling perfectly) */}
+      <div
+        key={activeTab}
+        className="animate-tab-switch l-rt-tab"
+        style={{ width: "100%" }}
+      >
         {activeTab === "report" && <ReportTab />}
+        {activeTab === "history" && <HistoryTab />}
         {activeTab === "notification" && <NotificationTab />}
         {activeTab === "profile" && <ProfileTab />}
       </div>
 
-      {/* PERSISTENT BOTTOM NAVIGATION (Pill Design) */}
+      {/* 4-Item PERSISTENT BOTTOM NAVIGATION */}
       <div className="bottom-nav-wrapper">
         <div className="pill-nav">
           <button
@@ -29,7 +32,18 @@ function LinemanDashboard() {
             onClick={() => setActiveTab("report")}
           >
             <List size={24} strokeWidth={activeTab === "report" ? 2.5 : 2} />
-            <span>Report</span>
+            <span>Assigned</span>
+          </button>
+
+          <button
+            className={`nav-item ${activeTab === "history" ? "active" : ""}`}
+            onClick={() => setActiveTab("history")}
+          >
+            <Archive
+              size={24}
+              strokeWidth={activeTab === "history" ? 2.5 : 2}
+            />
+            <span>Logs</span>
           </button>
 
           <button
@@ -40,7 +54,7 @@ function LinemanDashboard() {
               size={24}
               strokeWidth={activeTab === "notification" ? 2.5 : 2}
             />
-            <span>Notification</span>
+            <span>Notifs</span>
           </button>
 
           <button
