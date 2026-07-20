@@ -15,9 +15,14 @@ function App() {
   const isDevRoute = window.location.pathname === "/dev-lineman-signup";
 
   useEffect(() => {
+    // Helper function to check if we are in the middle of a password reset
+    const isRecovering = () =>
+      localStorage.getItem("recovery_in_progress") === "true";
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      if (session) {
+      // Skip fetching role if they are just recovering their password
+      if (session && !isRecovering()) {
         fetchUserRole(session.user.id);
       } else {
         setAppLoading(false);
@@ -28,6 +33,13 @@ function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+
+      // 🚀 THE FIX: If they are recovering their password, IGNORE the login event!
+      // This stops the Loading Screen from rendering and destroying the Forgot Password form.
+      if (isRecovering()) {
+        return;
+      }
+
       if (session) {
         setRoleFetching(true);
         fetchUserRole(session.user.id);
@@ -100,11 +112,14 @@ function App() {
     return <LinemanRegister onBack={() => (window.location.href = "/")} />;
   }
 
-  if (!session) {
+  const isRecoveringFlag =
+    localStorage.getItem("recovery_in_progress") === "true";
+
+  if (!session || isRecoveringFlag) {
     return <Auth onBack={() => console.log("Already at root login screen")} />;
   }
 
-  if (session && userRole) {
+  if (session && userRole && !isRecoveringFlag) {
     if (userRole === 7) return <ResidentDashboard />;
     if (userRole === 9) return <LinemanDashboard />;
   }

@@ -4,9 +4,16 @@ import { Eye, EyeOff, ChevronLeft } from "lucide-react";
 import logo from "../assets/ISELCONNECT.png";
 import { logSystemAction } from "../utils/logger";
 import SignUp from "./SignUp";
+import ForgotPassword from "./ForgotPassword";
 
 function Auth({ onBack }) {
   const [showSignUp, setShowSignUp] = useState(false);
+
+  // Initialize state based on whether a recovery is currently in progress
+  const [showForgotPassword, setShowForgotPassword] = useState(
+    localStorage.getItem("recovery_in_progress") === "true",
+  );
+
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -53,8 +60,18 @@ function Auth({ onBack }) {
     }
   };
 
+  // --- SCREEN ROUTING ---
   if (showSignUp) {
     return <SignUp onBack={() => setShowSignUp(false)} />;
+  }
+
+  if (showForgotPassword) {
+    return (
+      <ForgotPassword
+        onBack={() => setShowForgotPassword(false)}
+        onPasswordUpdated={() => setShowForgotPassword(false)}
+      />
+    );
   }
 
   return (
@@ -67,9 +84,6 @@ function Auth({ onBack }) {
         overflow: "hidden",
       }}
     >
-      {/* =========================================
-          TOP SECTION (Background Image & Logo) 
-      ============================================= */}
       <div
         className="auth-bg-photo"
         style={{
@@ -82,7 +96,6 @@ function Auth({ onBack }) {
           backgroundPosition: "center",
         }}
       >
-        {/* Smooth white fade at the bottom of the image */}
         <div
           style={{
             position: "absolute",
@@ -93,8 +106,6 @@ function Auth({ onBack }) {
             background: "linear-gradient(to bottom, transparent, #ffffff)",
           }}
         ></div>
-
-        {/* LOGO MOVED LOWER HERE */}
         <img
           src={logo}
           alt="ISELCONNECT Logo"
@@ -108,9 +119,6 @@ function Auth({ onBack }) {
         />
       </div>
 
-      {/* =========================================
-          BOTTOM SECTION (Navy Bottom Sheet) 
-      ============================================= */}
       <div
         style={{
           backgroundColor: "#1b0b8c",
@@ -121,7 +129,6 @@ function Auth({ onBack }) {
           animation: "slideUpFade 0.4s ease-out",
         }}
       >
-        {/* Title Header */}
         <div style={{ textAlign: "center", marginBottom: "25px" }}>
           <h2
             style={{
@@ -164,7 +171,6 @@ function Auth({ onBack }) {
           onSubmit={handleSubmit}
           style={{ display: "flex", flexDirection: "column" }}
         >
-          {/* Email Input Group */}
           <div
             style={{
               display: "flex",
@@ -203,12 +209,11 @@ function Auth({ onBack }) {
             />
           </div>
 
-          {/* Password Input Group */}
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              marginBottom: "35px",
+              marginBottom: "10px",
             }}
           >
             <label
@@ -272,7 +277,36 @@ function Auth({ onBack }) {
             </div>
           </div>
 
-          {/* Login Button */}
+          <div
+            style={{
+              textAlign: "right",
+              marginBottom: "25px",
+              paddingRight: "10px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem("recovery_in_progress", "true"); // Save flag immediately!
+                setShowForgotPassword(true);
+                setErrorMsg("");
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#cbd5e1",
+                fontWeight: "600",
+                cursor: "pointer",
+                fontSize: "0.85rem",
+                padding: 0,
+                textDecoration: "underline",
+                fontFamily: "inherit",
+              }}
+            >
+              Forgot Password?
+            </button>
+          </div>
+
           <div style={{ padding: "0 10px" }}>
             <button
               type="submit"
@@ -296,7 +330,6 @@ function Auth({ onBack }) {
             </button>
           </div>
 
-          {/* Footer Link */}
           <div style={{ textAlign: "center", marginTop: "30px" }}>
             <p
               style={{
