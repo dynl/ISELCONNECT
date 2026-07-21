@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { translations } from "../components/translations";
+import Webcam from "react-webcam";
+import { Geolocation } from "@capacitor/geolocation";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import Webcam from "react-webcam";
 import {
   ChevronLeft,
   Clock,
@@ -33,8 +34,8 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
-  const webcamRef = useRef(null);
   const watchIdRef = useRef(null);
+  const webcamRef = useRef(null);
 
   const linemanMarkerRef = useRef(null);
   const lineRef = useRef(null);
@@ -104,46 +105,61 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
   }, [report.id]);
 
   useEffect(() => {
-    if (activeStatus === "IN PROGRESS" && currentUserId) {
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const { latitude, longitude } = position.coords;
-            setLinemanLocation({ lat: latitude, lon: longitude });
-            await supabase
-              .from("assignments")
-              .update({ current_lat: latitude, current_lon: longitude })
-              .eq("report_id", report.id)
-              .eq("lineman_id", currentUserId);
-          },
-          (err) => console.warn("Initial GPS ping failed:", err.message),
-          { enableHighAccuracy: true },
-        );
+    let activeWatchId = null;
 
-        watchIdRef.current = navigator.geolocation.watchPosition(
-          async (position) => {
-            const { latitude, longitude } = position.coords;
-            setLinemanLocation({ lat: latitude, lon: longitude });
-            await supabase
-              .from("assignments")
-              .update({ current_lat: latitude, current_lon: longitude })
-              .eq("report_id", report.id)
-              .eq("lineman_id", currentUserId);
-          },
-          (error) => console.warn("Live tracking error:", error.message),
-          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 },
-        );
+    const startNativeTracking = async () => {
+      if (activeStatus === "IN PROGRESS" && currentUserId) {
+        try {
+          // 1. Initial Native GPS Ping
+          const position = await Geolocation.getCurrentPosition({
+            enableHighAccuracy: true,
+          });
+          setLinemanLocation({
+            lat: position.coords.latitude,
+            lon: position.coords.longitude,
+          });
+
+          await supabase
+            .from("assignments")
+            .update({
+              current_lat: position.coords.latitude,
+              current_lon: position.coords.longitude,
+            })
+            .eq("report_id", report.id)
+            .eq("lineman_id", currentUserId);
+
+          // 2. Start Native Background Watcher
+          activeWatchId = await Geolocation.watchPosition(
+            { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 },
+            async (pos, err) => {
+              if (pos) {
+                setLinemanLocation({
+                  lat: pos.coords.latitude,
+                  lon: pos.coords.longitude,
+                });
+                await supabase
+                  .from("assignments")
+                  .update({
+                    current_lat: pos.coords.latitude,
+                    current_lon: pos.coords.longitude,
+                  })
+                  .eq("report_id", report.id)
+                  .eq("lineman_id", currentUserId);
+              }
+            },
+          );
+          watchIdRef.current = activeWatchId;
+        } catch (err) {
+          console.warn("Native GPS failed:", err.message);
+        }
       }
-    } else {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
-    }
+    };
+
+    startNativeTracking();
 
     return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
+      if (watchIdRef.current) {
+        Geolocation.clearWatch({ id: watchIdRef.current });
         watchIdRef.current = null;
       }
     };

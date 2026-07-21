@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Webcam from "react-webcam";
+import { Geolocation } from "@capacitor/geolocation";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
   Camera as CameraIcon,
-  ChevronLeft,
   ChevronDown,
+  ChevronLeft,
   AlertTriangle,
   Clock,
   ShieldAlert,
@@ -351,29 +352,25 @@ function ReportTab({ isActive }) {
     });
   };
 
-  const capture = useCallback(() => {
+  const capture = useCallback(async () => {
     const imageSrc = webcamRef.current.getScreenshot();
     setImagePreview(imageSrc);
     setIsCameraOpen(false);
     setCoordinates({ lat: "Fetching...", lon: "Fetching..." });
     setError("");
 
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCoordinates({
-            lat: position.coords.latitude.toFixed(6),
-            lon: position.coords.longitude.toFixed(6),
-          });
-        },
-        (err) => {
-          setError("Location access denied or failed. Please enable GPS.");
-          setCoordinates({ lat: "", lon: "" });
-        },
-        { enableHighAccuracy: true, timeout: 10000 },
-      );
-    } else {
-      setError("Geolocation is not supported by this device.");
+    try {
+      // Use Capacitor Geolocation natively so it does not fail
+      const position = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+      });
+      setCoordinates({
+        lat: position.coords.latitude.toFixed(6),
+        lon: position.coords.longitude.toFixed(6),
+      });
+    } catch (err) {
+      console.error("Location access failed:", err);
+      setError("Location access denied or failed. Please enable GPS.");
       setCoordinates({ lat: "", lon: "" });
     }
   }, [webcamRef]);
