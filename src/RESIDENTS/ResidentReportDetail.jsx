@@ -229,7 +229,6 @@ function ResidentReportDetail({ report, onBack, onReportUpdated }) {
           lineRef.current = L.polyline(routePoints, {
             color: "#1b0b8c", // Navy Blue
             weight: 5,
-            dashArray: "10, 10", // Dashed effect
             opacity: 0.8,
           }).addTo(mapRef.current);
 

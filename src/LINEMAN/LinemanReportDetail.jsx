@@ -265,7 +265,6 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
           lineRef.current = L.polyline(routePoints, {
             color: "#1b0b8c",
             weight: 5,
-            dashArray: "10, 10",
             opacity: 0.8,
           }).addTo(mapRef.current);
 
@@ -601,7 +600,7 @@ function LinemanReportDetail({ report, onBack, onReportUpdated }) {
             ref={webcamRef}
             screenshotFormat="image/jpeg"
             videoConstraints={{ facingMode: "environment" }}
-            mirrored={true}
+            mirrored={false}
             style={{
               position: "absolute",
               top: 0,

@@ -921,7 +921,7 @@ function ReportTab({ isActive }) {
               ref={webcamRef}
               screenshotFormat="image/jpeg"
               videoConstraints={{ facingMode: "environment" }}
-              mirrored={true}
+              mirrored={false}
               style={{
                 position: "absolute",
                 top: 0,
